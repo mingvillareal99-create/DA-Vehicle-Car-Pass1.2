@@ -765,7 +765,7 @@ const AppContent = () => {
               </div>
               <div>
                 <h1 className="text-xl font-semibold text-gray-900">DA Vehicle Gate Pass System</h1>
-                <p className="text-xs text-gray-600">Department of Agriculture Philippines</p>
+                <p className="text-xs text-gray-600">Department of Agriculture Region V</p>
               </div>
             </div>
             <div className="flex items-center space-x-4">
