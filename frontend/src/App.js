@@ -734,7 +734,7 @@ const AppContent = () => {
           <div className="w-16 h-16 bg-green-600 rounded-full hidden items-center justify-center mx-auto mb-4">
             <Building className="w-8 h-8 text-white animate-pulse" />
           </div>
-          <p className="text-gray-600">Loading DA Vehicle Gate Pass System...</p>
+          <p className="text-center text-gray-500 py-8">Loading DA Vehicle Gate Pass System...</p>
         </div>
       </div>
     );
