@@ -1,7 +1,8 @@
 {
-  "name": "frontend",
-  "version": "0.1.0",
+  "name": "da-vehicle-gate-pass-frontend",
+  "version": "2.0.0",
   "private": true,
+  "homepage": ".",
   "dependencies": {
     "@hookform/resolvers": "^5.0.1",
     "@radix-ui/react-accordion": "^1.2.8",
@@ -35,10 +36,11 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
-    "cra-template": "1.2.0",
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
+    "jsbarcode": "^3.11.5",
+    "jspdf": "^2.5.2",
     "lucide-react": "^0.507.0",
     "next-themes": "^0.4.6",
     "react": "^19.0.0",
@@ -51,13 +53,27 @@
     "sonner": "^2.0.3",
     "tailwind-merge": "^3.2.0",
     "tailwindcss-animate": "^1.0.7",
+    "tesseract.js": "^5.1.1",
     "vaul": "^1.1.2",
+    "workbox-background-sync": "^7.3.0",
+    "workbox-broadcast-update": "^7.3.0",
+    "workbox-cacheable-response": "^7.3.0",
+    "workbox-core": "^7.3.0",
+    "workbox-expiration": "^7.3.0",
+    "workbox-google-analytics": "^7.3.0",
+    "workbox-navigation-preload": "^7.3.0",
+    "workbox-precaching": "^7.3.0",
+    "workbox-range-requests": "^7.3.0",
+    "workbox-routing": "^7.3.0",
+    "workbox-strategies": "^7.3.0",
+    "workbox-streams": "^7.3.0",
     "zod": "^3.24.4"
   },
   "scripts": {
     "start": "craco start",
     "build": "craco build",
-    "test": "craco test"
+    "test": "craco test",
+    "eject": "react-scripts eject"
   },
   "browserslist": {
     "production": [
@@ -82,6 +98,5 @@
     "globals": "15.15.0",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.17"
-  },
-  "packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+  }
 }
