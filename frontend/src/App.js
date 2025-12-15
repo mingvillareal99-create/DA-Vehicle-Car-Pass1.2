@@ -639,9 +639,12 @@ const MobileRegistration = () => {
     setLoading(true);
     
     try {
+      console.log('Starting registration submission...');
+      
       // Convert license photo to base64
       let licensePhotoBase64 = null;
       if (licensePhoto) {
+        console.log('Converting license photo to base64...');
         licensePhotoBase64 = await fileToBase64(licensePhoto);
       }
 
@@ -651,13 +654,21 @@ const MobileRegistration = () => {
         license_photo_base64: licensePhotoBase64
       };
 
+      console.log('Registration data prepared:', {
+        ...registrationData,
+        license_photo_base64: licensePhotoBase64 ? '[BASE64_DATA]' : null
+      });
+
       if (isOnline) {
+        console.log('Submitting registration to server...');
         const response = await axios.post(`${API}/visitor-registration`, registrationData);
+        console.log('Registration response:', response.data);
+        
         setRegistrationResult(response.data);
         setMessage({ type: 'success', text: 'Visitor registered successfully!' });
         setStep(4);
       } else {
-        // Store offline
+        console.log('Storing registration offline...');
         await OfflineStorageManager.storeOfflineData('/visitor-registration', registrationData);
         setMessage({ 
           type: 'success', 
@@ -666,18 +677,32 @@ const MobileRegistration = () => {
         setStep(4);
       }
     } catch (error) {
+      console.error('Registration error:', error);
+      console.error('Error response:', error.response?.data);
+      
       if (!isOnline) {
-        await OfflineStorageManager.storeOfflineData('/visitor-registration', formData);
+        console.log('Network error - storing offline...');
+        await OfflineStorageManager.storeOfflineData('/visitor-registration', registrationData);
         setMessage({ 
           type: 'success', 
           text: 'Registration stored offline. Will sync when online.' 
         });
         setStep(4);
       } else {
-        setMessage({ 
-          type: 'error', 
-          text: error.response?.data?.detail || 'Registration failed' 
-        });
+        // Check if it's actually a success (status 200/201) but with error message
+        if (error.response && (error.response.status === 200 || error.response.status === 201)) {
+          console.log('Registration actually succeeded despite error');
+          setRegistrationResult(error.response.data);
+          setMessage({ type: 'success', text: 'Visitor registered successfully!' });
+          setStep(4);
+        } else {
+          const errorMessage = error.response?.data?.detail || error.message || 'Registration failed';
+          console.error('Registration failed with error:', errorMessage);
+          setMessage({ 
+            type: 'error', 
+            text: `Registration failed: ${errorMessage}` 
+          });
+        }
       }
     } finally {
       setLoading(false);
