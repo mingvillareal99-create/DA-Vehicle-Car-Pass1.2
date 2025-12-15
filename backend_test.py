@@ -303,8 +303,133 @@ class VehicleGatePassAPITester:
         if success:
             print(f"   Today's entries/exits: {response.get('today_entries_exits')}")
             print(f"   Total vehicles: {response.get('total_vehicles')}")
+            print(f"   Total visitors: {response.get('total_visitors')}")
             print(f"   Vehicles inside: {response.get('vehicles_inside')}")
             print(f"   Overstaying vehicles: {response.get('overstaying_vehicles')}")
+        return success
+
+    def test_visitor_registration(self):
+        """Test visitor registration with complete data"""
+        visitor_data = {
+            "plate_number": "VIS-001",
+            "vehicle_type": "private",
+            "purpose_of_visit": "Meeting with Field Operations",
+            "department_visiting": "Field Operations",
+            "visit_duration": "4_hours",
+            "driver_license": {
+                "license_number": "N01-12-123456",
+                "last_name": "Dela Cruz",
+                "first_name": "Juan",
+                "middle_name": "Santos",
+                "gender": "male",
+                "date_of_birth": "1990-01-15",
+                "address": "123 Main St, Legazpi City, Albay"
+            }
+        }
+        success, response = self.run_test(
+            "Register Visitor",
+            "POST",
+            "visitor-registration",
+            200,
+            data=visitor_data,
+            token=self.guard_token
+        )
+        if success:
+            print(f"   Registered visitor: {response.get('plate_number')}")
+            print(f"   Expires at: {response.get('expires_at')}")
+            print(f"   Barcode: {response.get('barcode_data')}")
+        return success
+
+    def test_get_active_visitors(self):
+        """Test getting active visitors"""
+        success, response = self.run_test(
+            "Get Active Visitors",
+            "GET",
+            "visitors",
+            200,
+            token=self.admin_token
+        )
+        if success:
+            print(f"   Found {len(response)} active visitors")
+            for visitor in response[:3]:  # Show first 3
+                print(f"   - {visitor.get('plate_number')}: {visitor.get('driver_license', {}).get('first_name')} {visitor.get('driver_license', {}).get('last_name')}")
+        return success
+
+    def test_get_visitor_by_plate(self):
+        """Test getting visitor by plate number"""
+        success, response = self.run_test(
+            "Get Visitor by Plate (VIS-001)",
+            "GET",
+            "visitors/VIS-001",
+            200,
+            token=self.guard_token
+        )
+        if success:
+            print(f"   Visitor: {response.get('plate_number')} - {response.get('driver_license', {}).get('first_name')} {response.get('driver_license', {}).get('last_name')}")
+        return success
+
+    def test_scan_visitor_vehicle(self):
+        """Test scanning visitor vehicle"""
+        success, response = self.run_test(
+            "Scan Visitor Vehicle (VIS-001)",
+            "POST",
+            "scan",
+            200,
+            data={"plate_number": "VIS-001", "scan_method": "scanner"},
+            token=self.guard_token
+        )
+        if success:
+            print(f"   Action: {response.get('action')}")
+            print(f"   Message: {response.get('message')}")
+            if response.get('warning'):
+                print(f"   Warning: {response.get('warning')}")
+        return success
+
+    def test_duplicate_visitor_registration(self):
+        """Test registering duplicate visitor (should fail)"""
+        visitor_data = {
+            "plate_number": "VIS-001",  # Same as previous test
+            "vehicle_type": "private",
+            "purpose_of_visit": "Another meeting",
+            "department_visiting": "Admin",
+            "visit_duration": "2_hours",
+            "driver_license": {
+                "license_number": "N01-12-999999",
+                "last_name": "Test",
+                "first_name": "Duplicate",
+                "gender": "female",
+                "date_of_birth": "1995-05-20",
+                "address": "456 Test St, Legazpi City"
+            }
+        }
+        success, _ = self.run_test(
+            "Duplicate Visitor Registration (Should Fail)",
+            "POST",
+            "visitor-registration",
+            400,
+            data=visitor_data,
+            token=self.guard_token
+        )
+        return success
+
+    def test_sync_offline_data(self):
+        """Test syncing offline data"""
+        sync_data = {
+            "visitor_registrations": [],
+            "entry_exit_logs": []
+        }
+        success, response = self.run_test(
+            "Sync Offline Data",
+            "POST",
+            "sync",
+            200,
+            data=sync_data,
+            token=self.guard_token
+        )
+        if success:
+            print(f"   Synced registrations: {response.get('synced_registrations')}")
+            print(f"   Synced logs: {response.get('synced_logs')}")
+            print(f"   Success: {response.get('success')}")
         return success
 
     def test_unauthorized_access(self):
