@@ -673,18 +673,17 @@ const MobileRegistration = () => {
       setLicensePhoto(file);
       setOcrProcessing(true);
       setOcrProgress(0);
-      
-      // Simulate progress for UX
-      const progressInterval = setInterval(() => {
-        setOcrProgress(prev => Math.min(prev + 10, 90));
-      }, 200);
 
       try {
-        const result = await OCRService.extractLicenseData(file);
-        clearInterval(progressInterval);
-        setOcrProgress(100);
+        const result = await OCRService.extractLicenseData(file, (progress, status) => {
+          setOcrProgress(progress);
+          setMessage({ type: 'info', text: status });
+        });
+        
+        console.log('OCR Result:', result);
         
         if (result.success) {
+          // Show preview of extracted data before proceeding
           setFormData(prev => ({
             ...prev,
             driver_license: {
@@ -692,19 +691,43 @@ const MobileRegistration = () => {
               ...result.data
             }
           }));
-          setMessage({ type: 'success', text: 'License data extracted successfully!' });
-          setTimeout(() => setStep(2), 1000);
+          
+          // Show what was extracted
+          const extractedFields = Object.entries(result.data)
+            .filter(([key, value]) => value && value.trim().length > 0)
+            .map(([key, value]) => `${key.replace('_', ' ')}: ${value}`)
+            .join(', ');
+          
+          if (extractedFields) {
+            setMessage({ 
+              type: 'success', 
+              text: `OCR extracted: ${extractedFields}. Please verify and edit in the next step.` 
+            });
+          } else {
+            setMessage({ 
+              type: 'warning', 
+              text: 'OCR completed but no clear data found. You can input manually in the next step.' 
+            });
+          }
+          
+          setTimeout(() => setStep(2), 2000);
         } else {
           setMessage({ 
             type: 'error', 
-            text: 'OCR failed. Please try again or input manually.' 
+            text: `OCR failed: ${result.error || 'Unable to read license clearly'}. You can try again or input manually.` 
           });
         }
+        
+        // Show raw OCR text for debugging
+        if (result.rawText) {
+          console.log('Raw OCR Text for debugging:', result.rawText);
+        }
+        
       } catch (error) {
-        clearInterval(progressInterval);
+        console.error('OCR processing error:', error);
         setMessage({ 
           type: 'error', 
-          text: 'Error processing image. Please try again.' 
+          text: 'Error processing image. Please try again with better lighting or input manually.' 
         });
       } finally {
         setOcrProcessing(false);
