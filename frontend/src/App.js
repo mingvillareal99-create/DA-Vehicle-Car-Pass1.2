@@ -720,8 +720,9 @@ const MobileRegistration = () => {
           });
         }
         
-        // Show raw OCR text for debugging
+        // Store raw OCR text for debugging
         if (result.rawText) {
+          setOcrDebugText(result.rawText);
           console.log('Raw OCR Text for debugging:', result.rawText);
         }
         
