@@ -695,8 +695,12 @@ class DashboardService:
                     # Check overstaying for expired visitors
                     if registration_type == RegistrationType.VISITOR and visitor:
                         expires_at = visitor.get('expires_at')
-                        if expires_at and current_time > expires_at:
-                            is_overstaying = True
+                        if expires_at:
+                            if isinstance(expires_at, str):
+                                expires_at = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+                            expires_at = self.datetime_service.ensure_timezone_aware(expires_at)
+                            if current_time > expires_at:
+                                is_overstaying = True
                 
                 status_list.append(VehicleStatus(
                     plate_number=log['plate_number'],
