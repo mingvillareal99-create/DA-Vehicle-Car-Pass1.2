@@ -862,10 +862,45 @@ const MobileRegistration = () => {
 
             {!ocrProcessing ? (
               <div className="space-y-4">
+                {/* Photo Tips */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <h3 className="font-semibold text-blue-800 mb-2">📷 Photo Tips for Best Results</h3>
+                  <ul className="text-blue-700 text-sm space-y-1">
+                    <li>• Ensure good lighting (avoid shadows)</li>
+                    <li>• Hold phone steady and close to license</li>
+                    <li>• Make sure all text is clearly visible</li>
+                    <li>• Avoid glare or reflections</li>
+                    <li>• Keep license flat and straight</li>
+                  </ul>
+                </div>
+
+                {/* Photo Preview */}
+                {licensePhoto && (
+                  <div className="border-2 border-green-300 rounded-lg p-4 mb-4">
+                    <h3 className="font-semibold text-green-800 mb-2">📸 Captured Photo</h3>
+                    <img 
+                      src={URL.createObjectURL(licensePhoto)} 
+                      alt="License Preview" 
+                      className="w-full max-h-48 object-contain rounded border"
+                    />
+                    <Button
+                      onClick={() => {
+                        setLicensePhoto(null);
+                        setMessage('');
+                      }}
+                      variant="outline"
+                      size="sm"
+                      className="mt-2 w-full"
+                    >
+                      Take New Photo
+                    </Button>
+                  </div>
+                )}
+
                 <div className="border-2 border-dashed border-green-300 rounded-lg p-8 text-center">
                   <Camera className="w-16 h-16 mx-auto text-green-600 mb-4" />
                   <p className="text-gray-600 mb-4">
-                    Take a clear photo of the driver's license
+                    {licensePhoto ? 'Retake photo if needed' : 'Take a clear photo of the driver\'s license'}
                   </p>
                   <input
                     id="license-camera"
@@ -881,7 +916,7 @@ const MobileRegistration = () => {
                     size="lg"
                   >
                     <Camera className="w-5 h-5 mr-2" />
-                    Capture License Photo
+                    {licensePhoto ? 'Retake Photo' : 'Capture License Photo'}
                   </Button>
                 </div>
                 
