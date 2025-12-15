@@ -145,45 +145,50 @@ class OfflineStorageManager {
   }
 }
 
-// OCR Service - Enhanced for Philippine Driver's License
+// OCR Service - Enhanced for Philippine Driver's License with Image Processing
 class OCRService {
-  static async extractLicenseData(imageFile) {
+  static async extractLicenseData(imageFile, progressCallback) {
     try {
       console.log('Starting OCR processing...');
+      progressCallback && progressCallback(10, 'Preparing image...');
       
-      const result = await Tesseract.recognize(imageFile, 'eng', {
+      // Enhance image before OCR
+      const enhancedImage = await this.enhanceImageForOCR(imageFile);
+      progressCallback && progressCallback(30, 'Analyzing image...');
+      
+      const result = await Tesseract.recognize(enhancedImage, 'eng', {
         logger: m => {
-          console.log('OCR Progress:', m);
           if (m.status === 'recognizing text') {
-            console.log('OCR Progress:', Math.round(m.progress * 100) + '%');
+            const progress = 30 + (m.progress * 60); // 30-90%
+            progressCallback && progressCallback(Math.round(progress), 'Reading text...');
           }
-        }
+        },
+        tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-/., ',
+        tessedit_pageseg_mode: Tesseract.PSM.AUTO
       });
+      
+      progressCallback && progressCallback(95, 'Processing data...');
       
       const text = result.data.text;
       console.log('OCR Raw Text:', text);
+      console.log('OCR Confidence:', result.data.confidence);
       
-      // Parse license data using enhanced patterns for Philippine licenses
-      const licenseData = {
-        license_number: this.extractLicenseNumber(text),
-        last_name: this.extractLastName(text),
-        first_name: this.extractFirstName(text),
-        middle_name: this.extractMiddleName(text),
-        date_of_birth: this.extractDateOfBirth(text),
-        address: this.extractAddress(text),
-        gender: this.extractGender(text)
-      };
+      // Parse license data using enhanced patterns
+      const licenseData = this.parsePhilippineLicense(text);
       
       console.log('Extracted License Data:', licenseData);
       
-      // Check if we extracted meaningful data
-      const hasData = Object.values(licenseData).some(value => value && value.trim().length > 0);
+      progressCallback && progressCallback(100, 'Complete!');
+      
+      // Validate extracted data
+      const validationResult = this.validateExtractedData(licenseData);
       
       return {
-        success: hasData,
+        success: validationResult.isValid,
         data: licenseData,
         confidence: result.data.confidence,
-        rawText: text
+        rawText: text,
+        validationErrors: validationResult.errors
       };
     } catch (error) {
       console.error('OCR Error:', error);
@@ -192,6 +197,91 @@ class OCRService {
         error: error.message
       };
     }
+  }
+
+  static async enhanceImageForOCR(imageFile) {
+    return new Promise((resolve) => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const img = new Image();
+      
+      img.onload = function() {
+        // Set canvas dimensions
+        canvas.width = img.width;
+        canvas.height = img.height;
+        
+        // Draw original image
+        ctx.drawImage(img, 0, 0);
+        
+        // Get image data
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imageData.data;
+        
+        // Enhance contrast and brightness
+        for (let i = 0; i < data.length; i += 4) {
+          // Increase contrast
+          data[i] = Math.min(255, Math.max(0, (data[i] - 128) * 1.5 + 128));     // Red
+          data[i + 1] = Math.min(255, Math.max(0, (data[i + 1] - 128) * 1.5 + 128)); // Green
+          data[i + 2] = Math.min(255, Math.max(0, (data[i + 2] - 128) * 1.5 + 128)); // Blue
+          
+          // Convert to grayscale for better OCR
+          const gray = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+          data[i] = data[i + 1] = data[i + 2] = gray > 128 ? 255 : 0; // Threshold
+        }
+        
+        // Put enhanced image data back
+        ctx.putImageData(imageData, 0, 0);
+        
+        // Convert to blob and resolve
+        canvas.toBlob(resolve, 'image/png');
+      };
+      
+      img.src = URL.createObjectURL(imageFile);
+    });
+  }
+
+  static parsePhilippineLicense(text) {
+    // Clean and normalize text
+    const cleanText = text.replace(/[^\w\s\-\/.,]/g, ' ').replace(/\s+/g, ' ').trim();
+    console.log('Clean text for parsing:', cleanText);
+    
+    return {
+      license_number: this.extractLicenseNumber(cleanText),
+      last_name: this.extractLastName(cleanText),
+      first_name: this.extractFirstName(cleanText),
+      middle_name: this.extractMiddleName(cleanText),
+      date_of_birth: this.extractDateOfBirth(cleanText),
+      address: this.extractAddress(cleanText),
+      gender: this.extractGender(cleanText)
+    };
+  }
+
+  static validateExtractedData(data) {
+    const errors = [];
+    
+    // Validate license number format
+    if (!data.license_number || data.license_number.length < 8) {
+      errors.push('Invalid license number format');
+    }
+    
+    // Validate names
+    if (!data.last_name || data.last_name.length < 2) {
+      errors.push('Last name too short or missing');
+    }
+    
+    if (!data.first_name || data.first_name.length < 2) {
+      errors.push('First name too short or missing');
+    }
+    
+    // Validate date format
+    if (data.date_of_birth && !data.date_of_birth.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      errors.push('Invalid date format');
+    }
+    
+    return {
+      isValid: errors.length === 0 || errors.length <= 2, // Allow some errors
+      errors
+    };
   }
 
   static extractLicenseNumber(text) {
