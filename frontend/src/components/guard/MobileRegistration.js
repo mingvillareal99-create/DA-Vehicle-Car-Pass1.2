@@ -285,7 +285,7 @@ const MobileRegistration = () => {
                 {/* Camera capture button */}
                 <div className="border-2 border-dashed border-green-300 rounded-lg p-8 text-center">
                   <Camera className="w-16 h-16 mx-auto mb-4 text-green-600" />
-                  <p className="text-gray-600 mb-4">Take a photo of the driver's license</p>
+                  <p className="text-gray-600 mb-4">Take a photo of the driver&apos;s license</p>
                   
                   <input
                     type="file"
