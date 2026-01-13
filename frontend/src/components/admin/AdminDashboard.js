@@ -159,7 +159,7 @@ const AdminDashboard = () => {
               <div className="flex items-center">
                 <Activity className="h-8 w-8 text-green-600" />
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Today's Activity</p>
+                  <p className="text-sm font-medium text-gray-600">Today&apos;s Activity</p>
                   <p className="text-2xl font-bold text-gray-900">{stats.today_entries_exits || 0}</p>
                 </div>
               </div>
