@@ -43,7 +43,14 @@ import {
   Calendar,
   MapPin,
   Phone,
-  CreditCard
+  CreditCard,
+  Database,
+  Edit,
+  Trash2,
+  Plus,
+  Search,
+  Filter,
+  ArrowUpDown
 } from "lucide-react";
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
