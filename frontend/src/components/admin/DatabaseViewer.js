@@ -41,7 +41,7 @@ const DatabaseViewer = () => {
     if (selectedCollection) {
       fetchDocuments();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line
   }, [selectedCollection, page]);
 
   /**
