@@ -277,7 +277,7 @@ const MobileRegistration = () => {
             <div className="text-center mb-6">
               <img src={DA_LOGO_URL} alt="DA Logo" className="w-16 h-16 mx-auto mb-4" />
               <h2 className="text-xl font-bold text-gray-900">Visitor Registration</h2>
-              <p className="text-gray-600">Step 1: Capture Driver's License</p>
+              <p className="text-gray-600">Step 1: Capture Driver&apos;s License</p>
             </div>
 
             {!ocrProcessing ? (
