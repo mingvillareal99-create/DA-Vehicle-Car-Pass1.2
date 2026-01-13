@@ -2424,7 +2424,12 @@ const AdminDashboard = () => {
               </div>
             </CardContent>
           </Card>
-        </div>
+          </TabsContent>
+        </Tabs>
+      </div>
+    </div>
+  );
+};
 
 // Database Viewer Component
 const DatabaseViewer = () => {
