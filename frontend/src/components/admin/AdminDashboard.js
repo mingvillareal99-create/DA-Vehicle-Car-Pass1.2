@@ -79,7 +79,14 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
     }
-  };
+  }, []);
+
+  // Fetch dashboard data on mount and periodically
+  useEffect(() => {
+    fetchDashboardData();
+    const interval = setInterval(fetchDashboardData, 10000);
+    return () => clearInterval(interval);
+  }, [fetchDashboardData]);
 
   /**
    * Handle new vehicle creation
