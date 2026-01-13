@@ -58,17 +58,10 @@ const AdminDashboard = () => {
   // Auth context
   const { user, isOnline } = useAuth();
 
-  // Fetch dashboard data on mount and periodically
-  useEffect(() => {
-    fetchDashboardData();
-    const interval = setInterval(fetchDashboardData, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
   /**
    * Fetch all dashboard data in parallel
    */
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = React.useCallback(async () => {
     try {
       const [statsRes, vehiclesRes, visitorsRes, logsRes, statusRes] = await Promise.all([
         axios.get(`${API}/dashboard-stats`),
