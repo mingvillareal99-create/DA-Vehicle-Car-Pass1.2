@@ -560,7 +560,7 @@ const AdminDashboard = () => {
                     <h3 className="font-semibold text-green-800 mb-2">Installation Instructions</h3>
                     <ol className="text-green-700 text-sm space-y-1">
                       <li>1. Open this site on your mobile device</li>
-                      <li>2. Tap the browser menu and select "Add to Home Screen"</li>
+                      <li>2. Tap the browser menu and select &quot;Add to Home Screen&quot;</li>
                       <li>3. The app will work like a native mobile app</li>
                       <li>4. Camera permissions will be requested for license scanning</li>
                     </ol>
