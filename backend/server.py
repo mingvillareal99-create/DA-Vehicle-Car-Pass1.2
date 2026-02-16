@@ -669,12 +669,32 @@ class DashboardService:
         status_list = []
         current_time = self.datetime_service.now_utc()
         
+        # Batch fetch all vehicles and visitors to avoid N+1 queries
+        all_plate_numbers = [item['latest_log']['plate_number'] for item in inside_vehicles]
+        
+        # Fetch all matching vehicles in one query
+        vehicles_cursor = self.vehicle_repo.collection.find({
+            'plate_number': {'$in': all_plate_numbers},
+            'is_active': True
+        })
+        vehicles_list = await vehicles_cursor.to_list(1000)
+        vehicles_dict = {v['plate_number']: convert_objectid_to_str(v) for v in vehicles_list}
+        
+        # Fetch all matching visitors in one query
+        visitors_cursor = self.visitor_repo.collection.find({
+            'plate_number': {'$in': all_plate_numbers},
+            'is_active': True,
+            'expires_at': {'$gt': current_time}
+        })
+        visitors_list = await visitors_cursor.to_list(1000)
+        visitors_dict = {v['plate_number']: convert_objectid_to_str(v) for v in visitors_list}
+        
         for item in inside_vehicles:
             log = item['latest_log']
             
-            # Check both permanent vehicles and visitors
-            vehicle = await self.vehicle_repo.find_by_plate_number(log['plate_number'])
-            visitor = await self.visitor_repo.find_by_plate_number(log['plate_number'])
+            # Lookup from pre-fetched dictionaries (O(1) instead of database query)
+            vehicle = vehicles_dict.get(log['plate_number'])
+            visitor = visitors_dict.get(log['plate_number'])
             
             vehicle_info = vehicle or visitor
             
