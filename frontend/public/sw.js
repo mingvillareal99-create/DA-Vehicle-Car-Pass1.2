@@ -143,6 +143,11 @@ async function handleApiRequest(request) {
 
 // Handle static requests with cache-first strategy
 async function handleStaticRequest(request) {
+  // Only cache GET requests - POST, PUT, DELETE cannot be cached
+  if (request.method !== 'GET') {
+    return fetch(request);
+  }
+  
   const cache = await caches.open(CACHE_NAME);
   const cachedResponse = await cache.match(request);
   
