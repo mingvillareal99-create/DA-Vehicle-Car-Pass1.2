@@ -17,6 +17,7 @@ import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "../ui/dialog";
 import { 
   Car, 
   Shield, 
@@ -52,8 +53,16 @@ const AdminDashboard = () => {
     plate_number: '',
     vehicle_type: 'company',
     owner_name: '',
-    department: ''
+    department: '',
+    brand: '',
+    color: '',
+    classification: ''
   });
+  
+  // Vehicle management state
+  const [selectedManageVehicle, setSelectedManageVehicle] = useState(null);
+  const [isManageVehicleModalOpen, setIsManageVehicleModalOpen] = useState(false);
+  const [isAddVehicleModalOpen, setIsAddVehicleModalOpen] = useState(false);
   
   // Auth context
   const { user, isOnline } = useAuth();
@@ -113,8 +122,12 @@ const AdminDashboard = () => {
         plate_number: '',
         vehicle_type: 'company',
         owner_name: '',
-        department: ''
+        department: '',
+        brand: '',
+        color: '',
+        classification: ''
       });
+      setIsAddVehicleModalOpen(false);
       fetchDashboardData();
     } catch (error) {
       console.error('Error creating vehicle:', error);
@@ -232,7 +245,6 @@ const AdminDashboard = () => {
             <TabsTrigger value="logs" data-testid="tab-logs">Entry/Exit Logs</TabsTrigger>
             <TabsTrigger value="visitors" data-testid="tab-visitors">Visitors</TabsTrigger>
             <TabsTrigger value="vehicles" data-testid="tab-vehicles">Manage Vehicles</TabsTrigger>
-            <TabsTrigger value="add-vehicle" data-testid="tab-add-vehicle">Add Vehicle</TabsTrigger>
             <TabsTrigger value="mobile" data-testid="tab-mobile">Mobile Tools</TabsTrigger>
             <TabsTrigger value="database" data-testid="tab-database">Database</TabsTrigger>
           </TabsList>
@@ -397,114 +409,208 @@ const AdminDashboard = () => {
           {/* Manage Vehicles Tab */}
           <TabsContent value="vehicles">
             <Card>
-              <CardHeader>
+              <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-green-700">Permanent Vehicle Registrations</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {vehicles.map((vehicle) => (
-                    <div 
-                      key={vehicle.id} 
-                      className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200"
-                    >
-                      <div className="flex items-center space-x-4">
-                        <Badge 
-                          variant={vehicle.vehicle_type === 'private' ? 'secondary' : 'default'} 
-                          className={vehicle.vehicle_type === 'company' ? 'bg-green-600' : ''}
-                        >
-                          {vehicle.plate_number}
-                        </Badge>
+                <Dialog open={isAddVehicleModalOpen} onOpenChange={setIsAddVehicleModalOpen}>
+                  <DialogTrigger asChild>
+                    <Button className="bg-green-600 hover:bg-green-700">
+                      <Car className="w-4 h-4 mr-2" />
+                      Add Vehicle
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[500px]">
+                    <DialogHeader>
+                      <DialogTitle>Add New Permanent Vehicle</DialogTitle>
+                    </DialogHeader>
+                    <form onSubmit={handleCreateVehicle} className="space-y-4 py-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <p className="font-medium">{vehicle.owner_name}</p>
-                          <p className="text-sm text-gray-600">
-                            {vehicle.vehicle_type.toUpperCase()} 
-                            {vehicle.department && ` • ${vehicle.department}`}
-                          </p>
+                          <Label htmlFor="plate_number">Plate Number *</Label>
+                          <Input
+                            id="plate_number"
+                            value={newVehicle.plate_number}
+                            onChange={(e) => setNewVehicle({...newVehicle, plate_number: e.target.value})}
+                            placeholder="ABC-1234"
+                            className="font-mono mt-1"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <Label>Vehicle Type *</Label>
+                          <Select 
+                            value={newVehicle.vehicle_type} 
+                            onValueChange={(value) => setNewVehicle({...newVehicle, vehicle_type: value})}
+                          >
+                            <SelectTrigger className="mt-1">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="company">DA Government Vehicle</SelectItem>
+                              <SelectItem value="private">Private Vehicle</SelectItem>
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
-                      <div className="text-sm text-gray-500">
-                        Added: {new Date(vehicle.created_at).toLocaleDateString()}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="brand">Brand</Label>
+                          <Input
+                            id="brand"
+                            value={newVehicle.brand}
+                            onChange={(e) => setNewVehicle({...newVehicle, brand: e.target.value})}
+                            placeholder="e.g. Toyota, Honda"
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="color">Color</Label>
+                          <Input
+                            id="color"
+                            value={newVehicle.color}
+                            onChange={(e) => setNewVehicle({...newVehicle, color: e.target.value})}
+                            placeholder="e.g. White, Black"
+                            className="mt-1"
+                          />
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="classification">Classification</Label>
+                          <Input
+                            id="classification"
+                            value={newVehicle.classification}
+                            onChange={(e) => setNewVehicle({...newVehicle, classification: e.target.value})}
+                            placeholder="Gov / Private / Company"
+                            className="mt-1"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="department">Department</Label>
+                          <Input
+                            id="department"
+                            value={newVehicle.department}
+                            onChange={(e) => setNewVehicle({...newVehicle, department: e.target.value})}
+                            placeholder="Field Operations"
+                            className="mt-1"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <Label htmlFor="owner_name">Owner Name *</Label>
+                        <Input
+                          id="owner_name"
+                          value={newVehicle.owner_name}
+                          onChange={(e) => setNewVehicle({...newVehicle, owner_name: e.target.value})}
+                          placeholder="Juan Dela Cruz"
+                          className="mt-1"
+                          required
+                        />
+                      </div>
+                      <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 mt-4">
+                        Save Vehicle
+                      </Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </CardHeader>
+              <CardContent className="p-6 pt-0 overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Plate Number</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Vehicle Type</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Brand</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Color</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Classification</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Owner Name</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Department</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {vehicles.map((vehicle) => (
+                      <tr 
+                        key={vehicle.id} 
+                        className="hover:bg-green-50 cursor-pointer transition-colors"
+                        onClick={() => {
+                          setSelectedManageVehicle(vehicle);
+                          setIsManageVehicleModalOpen(true);
+                        }}
+                      >
+                        <td className="px-4 py-3 whitespace-nowrap">
+                          <Badge variant={vehicle.vehicle_type === 'private' ? 'secondary' : 'default'} className={vehicle.vehicle_type === 'company' ? 'bg-green-600' : ''}>
+                            {vehicle.plate_number}
+                          </Badge>
+                        </td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium capitalize">{vehicle.vehicle_type}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{vehicle.brand || 'N/A'}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{vehicle.color || 'N/A'}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{vehicle.classification || 'N/A'}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{vehicle.owner_name}</td>
+                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{vehicle.department || 'N/A'}</td>
+                      </tr>
+                    ))}
+                    {vehicles.length === 0 && (
+                      <tr>
+                        <td colSpan="7" className="px-4 py-8 text-center text-sm text-gray-500">No vehicles found.</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+                
+                {/* Manage Vehicle View Detail Modal */}
+                {selectedManageVehicle && (
+                  <Dialog open={isManageVehicleModalOpen} onOpenChange={(val) => {
+                    setIsManageVehicleModalOpen(val);
+                    if (!val) setSelectedManageVehicle(null);
+                  }}>
+                    <DialogContent className="sm:max-w-[450px]">
+                      <DialogHeader>
+                        <DialogTitle className="text-xl text-green-700 flex items-center">
+                          <Car className="w-5 h-5 mr-2" />
+                          Vehicle Details
+                        </DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4 mt-2">
+                        <div className="flexjustify-between items-center mb-4 border-b pb-4">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Plate Number</p>
+                            <Badge className="text-lg px-3 py-1 mt-1 bg-green-600">{selectedManageVehicle.plate_number}</Badge>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Owner</p>
+                            <p className="font-medium">{selectedManageVehicle.owner_name}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Type</p>
+                            <p className="font-medium capitalize">{selectedManageVehicle.vehicle_type}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Brand</p>
+                            <p className="font-medium">{selectedManageVehicle.brand || 'Not Specified'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Color</p>
+                            <p className="font-medium">{selectedManageVehicle.color || 'Not Specified'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Classification</p>
+                            <p className="font-medium">{selectedManageVehicle.classification || 'Not Specified'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Department</p>
+                            <p className="font-medium">{selectedManageVehicle.department || 'Not Specified'}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
 
-          {/* Add Vehicle Tab */}
-          <TabsContent value="add-vehicle">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-green-700">Add New Permanent Vehicle</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleCreateVehicle} className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="plate_number">Plate Number</Label>
-                      <Input
-                        id="plate_number"
-                        value={newVehicle.plate_number}
-                        onChange={(e) => setNewVehicle({...newVehicle, plate_number: e.target.value})}
-                        placeholder="ABC-1234"
-                        className="font-mono mt-1"
-                        required
-                        data-testid="new-vehicle-plate-input"
-                      />
-                    </div>
-                    <div>
-                      <Label>Vehicle Type</Label>
-                      <Select 
-                        value={newVehicle.vehicle_type} 
-                        onValueChange={(value) => setNewVehicle({...newVehicle, vehicle_type: value})}
-                      >
-                        <SelectTrigger className="mt-1">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="company">DA Government Vehicle</SelectItem>
-                          <SelectItem value="private">Private Vehicle</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor="owner_name">Owner Name</Label>
-                      <Input
-                        id="owner_name"
-                        value={newVehicle.owner_name}
-                        onChange={(e) => setNewVehicle({...newVehicle, owner_name: e.target.value})}
-                        placeholder="Juan Dela Cruz"
-                        className="mt-1"
-                        required
-                        data-testid="new-vehicle-owner-input"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="department">Department (Optional)</Label>
-                      <Input
-                        id="department"
-                        value={newVehicle.department}
-                        onChange={(e) => setNewVehicle({...newVehicle, department: e.target.value})}
-                        placeholder="Field Operations"
-                        className="mt-1"
-                      />
-                    </div>
-                  </div>
-                  <Button 
-                    type="submit" 
-                    className="w-full md:w-auto bg-green-600 hover:bg-green-700"
-                    data-testid="add-vehicle-submit-btn"
-                  >
-                    Add Vehicle
-                    <Car className="w-4 h-4 ml-2" />
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           {/* Mobile Tools Tab */}
           <TabsContent value="mobile">

@@ -144,6 +144,9 @@ class Vehicle(BaseEntity):
     vehicle_type: VehicleType
     owner_name: str
     department: Optional[str] = None
+    brand: Optional[str] = None
+    color: Optional[str] = None
+    classification: Optional[str] = None
     is_active: bool = True
     registration_type: RegistrationType = RegistrationType.PERMANENT
 
@@ -152,7 +155,9 @@ class VehicleCreate(BaseModel):
     vehicle_type: VehicleType
     owner_name: str
     department: Optional[str] = None
-
+    brand: Optional[str] = None
+    color: Optional[str] = None
+    classification: Optional[str] = None
 class VisitorRegistration(BaseEntity):
     """Visitor vehicle registration"""
     plate_number: str
@@ -364,15 +369,25 @@ class VehicleRepository(BaseRepository):
         if da_doc:
             da_str = convert_objectid_to_str(da_doc)
             # Map da-registrations format to Vehicle BaseModel format
+            
+            # Safe parsing
+            owner_info = da_str.get("owner", {})
+            first_name = owner_info.get("first_name", "")
+            family_name = owner_info.get("family_name", "")
+            owner_name = f"{first_name} {family_name}".strip() or "Unknown"
+            
+            plate_number_extracted = da_str.get("vehicle", {}).get("plate_number")
             return {
-                "id": da_str.get("_id", da_str.get("id")),
-                "plate_number": da_str["vehicle"]["plate_number"],
+                "id": str(da_doc.get("_id")),
+                "plate_number": plate_number_extracted if plate_number_extracted else plate_number,
                 "vehicle_type": VehicleType.COMPANY.value, # Defaulting imported vehicles to company/government
-                "owner_name": f"{da_str['owner']['first_name']} {da_str['owner']['family_name']}",
+                "owner_name": owner_name,
                 "department": da_str.get("employment", {}).get("classification"),
+                "brand": da_str.get("vehicle", {}).get("brand"),
+                "color": da_str.get("vehicle", {}).get("color"),
+                "classification": da_str.get("employment", {}).get("status"),
                 "is_active": True,
-                "registration_type": RegistrationType.PERMANENT.value,
-                "created_at": da_str.get("timestamp", datetime.now(timezone.utc))
+                "registration_type": RegistrationType.PERMANENT.value
             }
         return None
     
@@ -388,16 +403,41 @@ class VehicleRepository(BaseRepository):
         
         for da_doc in da_docs:
             da_str = convert_objectid_to_str(da_doc)
+            
+            # Safe parsing
+            owner_info = da_str.get("owner", {})
+            first_name = owner_info.get("first_name", "")
+            family_name = owner_info.get("family_name", "")
+            owner_name = f"{first_name} {family_name}".strip() or "Unknown"
+            
+            plate_number_extracted = da_str.get("vehicle", {}).get("plate_number")
+            plate_number = plate_number_extracted if plate_number_extracted else "UNKNOWN"
+            
             vehicles.append({
-                "id": da_str.get("_id", da_str.get("id")),
-                "plate_number": da_str["vehicle"]["plate_number"],
+                "id": str(da_doc.get("_id")),
+                "plate_number": plate_number,
                 "vehicle_type": VehicleType.COMPANY.value,
-                "owner_name": f"{da_str['owner']['first_name']} {da_str['owner']['family_name']}",
+                "owner_name": owner_name,
                 "department": da_str.get("employment", {}).get("classification"),
+                "brand": da_str.get("vehicle", {}).get("brand"),
+                "color": da_str.get("vehicle", {}).get("color"),
+                "classification": da_str.get("employment", {}).get("status"),
                 "is_active": True,
-                "registration_type": RegistrationType.PERMANENT.value,
-                "created_at": da_str.get("timestamp", datetime.now(timezone.utc))
+                "registration_type": RegistrationType.PERMANENT.value
             })
+            
+        # Sort by status of employment
+        def get_status_priority(doc):
+            status = str(doc.get("classification", "")).lower()
+            if "permanent" in status:
+                return 1
+            elif "contract of service" in status or status == "cos":
+                return 2
+            elif "job order" in status or status == "jo":
+                return 3
+            return 4
+            
+        vehicles.sort(key=get_status_priority)
             
         return vehicles
 
