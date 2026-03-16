@@ -239,7 +239,7 @@ class JWTService:
             return {"success": True, "payload": payload}
         except jwt.ExpiredSignatureError:
             return {"success": False, "error": "Token expired"}
-        except jwt.JWTError:
+        except jwt.InvalidTokenError:
             return {"success": False, "error": "Invalid token"}
 
 class DateTimeService:
@@ -315,11 +315,11 @@ class BaseRepository(ABC):
     
     @abstractmethod
     async def create(self, data: dict) -> dict:
-        pass
+        raise NotImplementedError
     
     @abstractmethod
     async def find_by_id(self, entity_id: str) -> Optional[dict]:
-        pass
+        raise NotImplementedError
 
 class UserRepository(BaseRepository):
     """User data access layer"""
