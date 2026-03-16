@@ -300,34 +300,56 @@ const DatabaseViewer = () => {
                   <table className="w-full border-collapse border border-gray-200">
                     <thead>
                       <tr className="bg-gray-50">
-                        <th className="border border-gray-200 px-4 py-2 text-left">ID</th>
-                        {filteredDocuments[0] && Object.keys(filteredDocuments[0])
-                          .filter(key => key !== '_id' && key !== 'id')
-                          .slice(0, 5)
-                          .map(key => (
-                            <th key={key} className="border border-gray-200 px-4 py-2 text-left capitalize">
-                              {key.replace('_', ' ')}
-                            </th>
-                          ))}
+                        {selectedCollection !== 'vehicles' && (
+                          <th className="border border-gray-200 px-4 py-2 text-left">ID</th>
+                        )}
+                        {filteredDocuments[0] && (() => {
+                          if (selectedCollection === 'vehicles') {
+                            return ['plate_number', 'vehicle_type', 'owner_name', 'status_of_employment', 'classification', 'is_active'].map(key => (
+                              <th key={key} className="border border-gray-200 px-4 py-2 text-left capitalize">
+                                {key.replace(/_/g, ' ')}
+                              </th>
+                            ));
+                          }
+                          return Object.keys(filteredDocuments[0])
+                            .filter(key => key !== '_id' && key !== 'id')
+                            .slice(0, 5)
+                            .map(key => (
+                              <th key={key} className="border border-gray-200 px-4 py-2 text-left capitalize">
+                                {key.replace(/_/g, ' ')}
+                              </th>
+                            ));
+                        })()}
                         <th className="border border-gray-200 px-4 py-2 text-left">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredDocuments.map(doc => (
                         <tr key={doc._id || doc.id} className="hover:bg-gray-50">
-                          <td className="border border-gray-200 px-4 py-2 font-mono text-xs">
-                            {doc.id?.substring(0, 8) || doc._id?.substring(0, 8)}...
-                          </td>
-                          {Object.keys(doc)
-                            .filter(key => key !== '_id' && key !== 'id')
-                            .slice(0, 5)
-                            .map(key => (
-                              <td key={key} className="border border-gray-200 px-4 py-2 max-w-xs">
-                                <div className="truncate" title={renderValue(doc[key], key)}>
-                                  {renderValue(doc[key], key)}
-                                </div>
-                              </td>
-                            ))}
+                          {selectedCollection !== 'vehicles' && (
+                            <td className="border border-gray-200 px-4 py-2 font-mono text-xs">
+                              {doc.id?.substring(0, 8) || doc._id?.substring(0, 8)}...
+                            </td>
+                          )}
+                          {(() => {
+                            const keys = selectedCollection === 'vehicles' 
+                              ? ['plate_number', 'vehicle_type', 'owner_name', 'status_of_employment', 'classification', 'is_active']
+                              : Object.keys(doc).filter(key => key !== '_id' && key !== 'id').slice(0, 5);
+                              
+                            return keys.map(key => {
+                              let val = doc[key];
+                              if (selectedCollection === 'vehicles' && key === 'is_active' && typeof val === 'boolean') {
+                                val = val ? 'Yes' : 'No';
+                              }
+                              return (
+                                <td key={key} className="border border-gray-200 px-4 py-2 max-w-xs">
+                                  <div className="truncate" title={renderValue(val, key)}>
+                                    {renderValue(val, key)}
+                                  </div>
+                                </td>
+                              );
+                            });
+                          })()}
                           <td className="border border-gray-200 px-4 py-2">
                             <div className="flex items-center space-x-2">
                               <Button

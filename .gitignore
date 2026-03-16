@@ -95,3 +95,7 @@ frontend/node_modules/.cache/default-development/10.pack
 # Environment files
 *.env
 *.env.*
+
+cleaned_registrations.json
+transformed_registrations.json
+cleaned_registrations.json

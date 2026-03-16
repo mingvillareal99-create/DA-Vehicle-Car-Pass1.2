@@ -354,13 +354,52 @@ class VehicleRepository(BaseRepository):
         return convert_objectid_to_str(doc)
     
     async def find_by_plate_number(self, plate_number: str) -> Optional[dict]:
+        # Check standard permanent vehicles
         doc = await self.collection.find_one({"plate_number": plate_number, "is_active": True})
-        return convert_objectid_to_str(doc)
+        if doc:
+            return convert_objectid_to_str(doc)
+            
+        # Check da-registrations (imported JSON data)
+        da_doc = await db["da-registrations"].find_one({"vehicle.plate_number": plate_number})
+        if da_doc:
+            da_str = convert_objectid_to_str(da_doc)
+            # Map da-registrations format to Vehicle BaseModel format
+            return {
+                "id": da_str.get("_id", da_str.get("id")),
+                "plate_number": da_str["vehicle"]["plate_number"],
+                "vehicle_type": VehicleType.COMPANY.value, # Defaulting imported vehicles to company/government
+                "owner_name": f"{da_str['owner']['first_name']} {da_str['owner']['family_name']}",
+                "department": da_str.get("employment", {}).get("classification"),
+                "is_active": True,
+                "registration_type": RegistrationType.PERMANENT.value,
+                "created_at": da_str.get("timestamp", datetime.now(timezone.utc))
+            }
+        return None
     
     async def find_all_active(self) -> List[dict]:
+        # 1. Fetch standard permanent vehicles
         cursor = self.collection.find({"is_active": True})
         docs = await cursor.to_list(1000)
-        return [convert_objectid_to_str(doc) for doc in docs]
+        vehicles = [convert_objectid_to_str(doc) for doc in docs]
+        
+        # 2. Fetch da-registrations
+        da_cursor = db["da-registrations"].find({})
+        da_docs = await da_cursor.to_list(1000)
+        
+        for da_doc in da_docs:
+            da_str = convert_objectid_to_str(da_doc)
+            vehicles.append({
+                "id": da_str.get("_id", da_str.get("id")),
+                "plate_number": da_str["vehicle"]["plate_number"],
+                "vehicle_type": VehicleType.COMPANY.value,
+                "owner_name": f"{da_str['owner']['first_name']} {da_str['owner']['family_name']}",
+                "department": da_str.get("employment", {}).get("classification"),
+                "is_active": True,
+                "registration_type": RegistrationType.PERMANENT.value,
+                "created_at": da_str.get("timestamp", datetime.now(timezone.utc))
+            })
+            
+        return vehicles
 
 class VisitorRegistrationRepository(BaseRepository):
     """Visitor registration data access layer"""
@@ -932,8 +971,14 @@ async def get_database_collections(current_user: dict = Depends(get_current_user
     
     for collection_name in collections:
         collection = db[collection_name]
-        count = await collection.count_documents({})
         
+        if collection_name == 'vehicles':
+            standard_count = await collection.count_documents({})
+            da_count = await db['da-registrations'].count_documents({})
+            count = standard_count + da_count
+        else:
+            count = await collection.count_documents({})
+            
         # Get sample document for structure
         sample_doc = await collection.find_one({})
         
@@ -961,17 +1006,70 @@ async def get_collection_data(
     
     collection = db[collection_name]
     
-    # Get documents with pagination
-    cursor = collection.find({}).skip(skip).limit(limit).sort("created_at", -1)
-    documents = await cursor.to_list(limit)
-    
-    # Convert ObjectId to string for JSON serialization
-    for doc in documents:
-        if '_id' in doc:
-            doc['_id'] = str(doc['_id'])
-    
-    # Get total count
-    total_count = await collection.count_documents({})
+    if collection_name == 'vehicles':
+        # Get documents from standard vehicles with pagination
+        cursor = collection.find({}).sort("created_at", -1)
+        standard_docs = await cursor.to_list(1000)
+        
+        # Get from da-registrations
+        da_cursor = db['da-registrations'].find({}).sort("timestamp", -1)
+        da_docs = await da_cursor.to_list(1000)
+        
+        documents = []
+        for doc in standard_docs:
+            if '_id' in doc: doc['_id'] = str(doc['_id'])
+            documents.append({
+                "_id": doc.get('_id'),
+                "plate_number": doc.get('plate_number'),
+                "vehicle_type": doc.get('vehicle_type'),
+                "owner_name": doc.get('owner_name'),
+                "status_of_employment": doc.get('status_of_employment', 'N/A'),
+                "classification": doc.get('department', 'N/A'),
+                "is_active": doc.get('is_active', True)
+            })
+            
+        for d in da_docs:
+            documents.append({
+                "_id": str(d.get("_id", d.get("id"))),
+                "plate_number": d.get("vehicle", {}).get("plate_number"),
+                "vehicle_type": d.get("vehicle", {}).get("type", "company"),
+                "owner_name": f"{d.get('owner', {}).get('first_name', '')} {d.get('owner', {}).get('family_name', '')}".strip() or "Unknown",
+                "status_of_employment": d.get("employment", {}).get("status", "N/A"),
+                "classification": d.get("employment", {}).get("classification", "N/A"),
+                "is_active": True
+            })
+            
+        # Sort by status of employment
+        def get_status_priority(doc):
+            status = str(doc.get("status_of_employment", "")).lower()
+            if "permanent" in status:
+                return 1
+            elif "contract of service" in status or status == "cos":
+                return 2
+            elif "job order" in status or status == "jo":
+                return 3
+            return 4
+            
+        documents.sort(key=get_status_priority)
+            
+        # Manually apply pagination to merged results
+        total_count = len(documents)
+        
+        # Ensure skip and limit are integers for slicing
+        skip_val = int(skip) if skip else 0
+        limit_val = int(limit) if limit else 50
+        documents = documents[skip_val : skip_val + limit_val]
+        
+    else:
+        # Get documents with standard pagination
+        cursor = collection.find({}).skip(skip).limit(limit).sort("created_at", -1)
+        documents = await cursor.to_list(limit)
+        
+        # Convert ObjectId to string for JSON serialization
+        for doc in documents:
+            if '_id' in doc: doc['_id'] = str(doc['_id'])
+        
+        total_count = await collection.count_documents({})
     
     return {
         "collection": collection_name,
