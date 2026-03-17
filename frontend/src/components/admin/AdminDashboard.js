@@ -10,6 +10,7 @@ import { API, DA_LOGO_URL } from '../../services/constants';
 import OfflineStatus from '../common/OfflineStatus';
 import VisitorDetailModal from '../common/VisitorDetailModal';
 import DatabaseViewer from './DatabaseViewer';
+import AnalyticsTab from './AnalyticsTab';
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -33,7 +34,8 @@ import {
   Eye,
   Smartphone,
   FileText,
-  Timer
+  Timer,
+  BarChart2
 } from "lucide-react";
 
 const AdminDashboard = () => {
@@ -242,12 +244,13 @@ const AdminDashboard = () => {
 
         {/* Main Tabs */}
         <Tabs defaultValue="status" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-7">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
             <TabsTrigger value="status" data-testid="tab-status">Vehicle Status</TabsTrigger>
             <TabsTrigger value="logs" data-testid="tab-logs">Entry/Exit Logs</TabsTrigger>
             <TabsTrigger value="visitors" data-testid="tab-visitors">Visitors</TabsTrigger>
             <TabsTrigger value="vehicles" data-testid="tab-vehicles">Manage Vehicles</TabsTrigger>
             <TabsTrigger value="mobile" data-testid="tab-mobile">Mobile Tools</TabsTrigger>
+            <TabsTrigger value="analytics" data-testid="tab-analytics" className="text-green-700 font-medium">Analytics</TabsTrigger>
             <TabsTrigger value="database" data-testid="tab-database">Database</TabsTrigger>
           </TabsList>
 
@@ -291,6 +294,44 @@ const AdminDashboard = () => {
                   ))}
                   {vehicleStatus.length === 0 && (
                     <p className="text-center text-gray-500 py-8">No vehicles currently inside</p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="mt-6">
+              <CardHeader>
+                <CardTitle className="text-green-700">Live Daily Scans</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {logs.map((log) => (
+                    <div 
+                      key={log.id} 
+                      className="flex items-center justify-between p-3 border rounded-lg bg-green-50 border-green-200"
+                    >
+                      <div className="flex items-center space-x-3">
+                        <Badge 
+                          variant={log.action === 'entry' ? 'default' : 'secondary'} 
+                          className={log.action === 'entry' ? 'bg-green-600' : ''}
+                        >
+                          {log.action === 'entry' ? <LogIn className="w-3 h-3 mr-1" /> : <LogOut className="w-3 h-3 mr-1" />}
+                          {log.action.toUpperCase()}
+                        </Badge>
+                        <span className="font-mono font-semibold">{log.plate_number}</span>
+                        <Badge variant="outline">{log.scan_method}</Badge>
+                        {log.registration_type === 'visitor' && (
+                          <Badge variant="outline" className="text-blue-600 border-blue-200">VISITOR</Badge>
+                        )}
+                        <span className="text-sm text-gray-600">Guard: {log.guard_username}</span>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {new Date(log.timestamp).toLocaleString()}
+                      </div>
+                    </div>
+                  ))}
+                  {logs.length === 0 && (
+                    <p className="text-center text-gray-500 py-8">No scans recorded today</p>
                   )}
                 </div>
               </CardContent>
@@ -742,6 +783,11 @@ const AdminDashboard = () => {
                 </div>
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* Analytics Tab */}
+          <TabsContent value="analytics">
+            <AnalyticsTab logs={logs} vehicles={vehicles} />
           </TabsContent>
 
           {/* Database Tab */}
