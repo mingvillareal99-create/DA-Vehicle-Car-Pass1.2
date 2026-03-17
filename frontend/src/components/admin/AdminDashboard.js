@@ -63,6 +63,8 @@ const AdminDashboard = () => {
   const [selectedManageVehicle, setSelectedManageVehicle] = useState(null);
   const [isManageVehicleModalOpen, setIsManageVehicleModalOpen] = useState(false);
   const [isAddVehicleModalOpen, setIsAddVehicleModalOpen] = useState(false);
+  const [vehiclePage, setVehiclePage] = useState(1);
+  const itemsPerPage = 20;
   
   // Auth context
   const { user, isOnline } = useAuth();
@@ -513,49 +515,105 @@ const AdminDashboard = () => {
                   </DialogContent>
                 </Dialog>
               </CardHeader>
-              <CardContent className="p-6 pt-0 overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
+              <CardContent className="p-6 pt-0">
+                <table className="w-full border-collapse border border-gray-200 table-fixed text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Plate Number</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Vehicle Type</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Brand</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Color</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Classification</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Owner Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Department</th>
+                      <th className="border border-gray-200 px-2 py-2 text-left capitalize w-[12%]">Plate Number</th>
+                      <th className="border border-gray-200 px-2 py-2 text-left capitalize w-[14%]">Type</th>
+                      <th className="border border-gray-200 px-2 py-2 text-left capitalize w-[12%]">Brand</th>
+                      <th className="border border-gray-200 px-2 py-2 text-left capitalize w-[12%]">Color</th>
+                      <th className="border border-gray-200 px-2 py-2 text-left capitalize w-[18%]">Owner name</th>
+                      <th className="border border-gray-200 px-2 py-2 text-left capitalize w-[20%]">Status Of Employment</th>
+                      <th className="border border-gray-200 px-2 py-2 text-left capitalize w-[12%]">Classification</th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {vehicles.map((vehicle) => (
+                  <tbody>
+                    {vehicles.slice((vehiclePage - 1) * itemsPerPage, vehiclePage * itemsPerPage).map((vehicle) => (
                       <tr 
                         key={vehicle.id} 
-                        className="hover:bg-green-50 cursor-pointer transition-colors"
+                        className="hover:bg-gray-50 cursor-pointer"
                         onClick={() => {
                           setSelectedManageVehicle(vehicle);
                           setIsManageVehicleModalOpen(true);
                         }}
                       >
-                        <td className="px-4 py-3 whitespace-nowrap">
-                          <Badge variant={vehicle.vehicle_type === 'private' ? 'secondary' : 'default'} className={vehicle.vehicle_type === 'company' ? 'bg-green-600' : ''}>
-                            {vehicle.plate_number}
-                          </Badge>
+                        <td className="border border-gray-200 px-2 py-2 truncate">
+                          <div className="truncate" title={vehicle.plate_number}>
+                            <Badge variant={vehicle.vehicle_type === 'private' ? 'secondary' : 'default'} className={vehicle.vehicle_type === 'company' ? 'bg-green-600' : ''}>
+                              {vehicle.plate_number}
+                            </Badge>
+                          </div>
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium capitalize">{vehicle.vehicle_type}</td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{vehicle.brand || 'N/A'}</td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{vehicle.color || 'N/A'}</td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{vehicle.classification || 'N/A'}</td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{vehicle.owner_name}</td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{vehicle.department || 'N/A'}</td>
+                        <td className="border border-gray-200 px-2 py-2 truncate text-xs">
+                          <div className="truncate capitalize" title={vehicle.vehicle_type}>
+                            {vehicle.vehicle_type}
+                          </div>
+                        </td>
+                        <td className="border border-gray-200 px-2 py-2 truncate">
+                          <div className="truncate capitalize" title={vehicle.brand || 'N/A'}>
+                            {vehicle.brand || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="border border-gray-200 px-2 py-2 truncate">
+                          <div className="truncate capitalize" title={vehicle.color || 'N/A'}>
+                            {vehicle.color || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="border border-gray-200 px-2 py-2 truncate">
+                          <div className="truncate" title={vehicle.owner_name}>
+                            {vehicle.owner_name}
+                          </div>
+                        </td>
+                        <td className="border border-gray-200 px-2 py-2 truncate text-xs">
+                          <div className="truncate" title={vehicle.department || 'N/A'}>
+                            {vehicle.department || 'N/A'}
+                          </div>
+                        </td>
+                        <td className="border border-gray-200 px-2 py-2 truncate text-xs">
+                          <div className="truncate" title={vehicle.classification || 'N/A'}>
+                            {vehicle.classification || 'N/A'}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                     {vehicles.length === 0 && (
                       <tr>
-                        <td colSpan="7" className="px-4 py-8 text-center text-sm text-gray-500">No vehicles found.</td>
+                        <td colSpan="7" className="border border-gray-200 px-2 py-8 text-center text-sm text-gray-500">No vehicles found.</td>
                       </tr>
                     )}
                   </tbody>
                 </table>
+                
+                {/* Pagination Controls */}
+                {vehicles.length > itemsPerPage && (
+                  <div className="flex items-center justify-between mt-4">
+                    <div className="text-sm text-gray-500">
+                      Showing {((vehiclePage - 1) * itemsPerPage) + 1} to {Math.min(vehiclePage * itemsPerPage, vehicles.length)} of {vehicles.length} entries
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setVehiclePage(prev => Math.max(prev - 1, 1))}
+                        disabled={vehiclePage === 1}
+                      >
+                        Previous
+                      </Button>
+                      <div className="flex items-center justify-center px-4 text-sm font-medium">
+                        Page {vehiclePage} of {Math.ceil(vehicles.length / itemsPerPage)}
+                      </div>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setVehiclePage(prev => Math.min(prev + 1, Math.ceil(vehicles.length / itemsPerPage)))}
+                        disabled={vehiclePage === Math.ceil(vehicles.length / itemsPerPage)}
+                      >
+                        Next
+                      </Button>
+                    </div>
+                  </div>
+                )}
                 
                 {/* Manage Vehicle View Detail Modal */}
                 {selectedManageVehicle && (
