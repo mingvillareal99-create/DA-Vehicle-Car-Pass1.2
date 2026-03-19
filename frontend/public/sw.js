@@ -78,6 +78,14 @@ async function handleApiRequest(request) {
   
   // For POST requests (registration, scan), always try network first
   if (request.method === 'POST') {
+    // Clone body once before fetch consumes the request
+    let requestData = {};
+    try {
+      requestData = await request.clone().json();
+    } catch (e) {
+      console.log('SW: Could not parse request JSON');
+    }
+
     try {
       const response = await fetch(request);
       
@@ -89,7 +97,7 @@ async function handleApiRequest(request) {
         // Store offline data for sync
         if (url.pathname.includes('/visitor-registration') || 
             url.pathname.includes('/scan')) {
-          await storeOfflineData(url.pathname, await request.clone().json(), data);
+          await storeOfflineData(url.pathname, requestData, data);
         }
       }
       
@@ -97,7 +105,7 @@ async function handleApiRequest(request) {
     } catch (error) {
       // If network fails, store for later sync
       console.log('SW: Network failed, storing for offline sync');
-      await storeOfflineData(url.pathname, await request.clone().json());
+      await storeOfflineData(url.pathname, requestData);
       
       return new Response(JSON.stringify({
         success: true,

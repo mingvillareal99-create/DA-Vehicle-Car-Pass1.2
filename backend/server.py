@@ -25,6 +25,9 @@ from PIL import Image
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+# Define Philippine Time (UTC+8) robustly without requiring tzdata
+PHT_TZ = timezone(timedelta(hours=8), name="PHT")
+
 # Configuration Class
 class Config:
     MONGO_URL = os.environ['MONGO_URL']
@@ -39,7 +42,7 @@ class Config:
 Config.UPLOAD_DIR.mkdir(exist_ok=True)
 
 # Database connection
-client = AsyncIOMotorClient(Config.MONGO_URL)
+client = AsyncIOMotorClient(Config.MONGO_URL, tz_aware=True)
 db = client[Config.DB_NAME]
 
 # Helper function to convert MongoDB documents
@@ -107,11 +110,11 @@ class Gender(str, Enum):
 class BaseEntity(BaseModel):
     """Base entity with common fields"""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(PHT_TZ))
 
 class TimestampMixin(BaseModel):
     """Mixin for timestamp fields"""
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(PHT_TZ))
     updated_at: Optional[datetime] = None
 
 # Database Models
@@ -183,7 +186,7 @@ class VisitorRegistrationCreate(BaseModel):
 class EntryExitLog(BaseEntity):
     plate_number: str
     action: LogAction
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(PHT_TZ))
     guard_username: str
     scan_method: str  # "scanner" or "manual"
     is_inside: bool = False  # True if vehicle is currently inside (default False)
@@ -233,7 +236,7 @@ class JWTService:
         payload = {
             'username': username,
             'role': role,
-            'exp': datetime.utcnow() + timedelta(hours=Config.JWT_EXPIRATION_HOURS)
+            'exp': DateTimeService.now_pht() + timedelta(hours=Config.JWT_EXPIRATION_HOURS)
         }
         return jwt.encode(payload, Config.JWT_SECRET, algorithm=Config.JWT_ALGORITHM)
     
@@ -251,13 +254,13 @@ class DateTimeService:
     """Service for datetime operations"""
     
     @staticmethod
-    def now_utc() -> datetime:
-        return datetime.now(timezone.utc)
+    def now_pht() -> datetime:
+        return datetime.now(PHT_TZ)
     
     @staticmethod
     def ensure_timezone_aware(dt: datetime) -> datetime:
         if dt.tzinfo is None:
-            return dt.replace(tzinfo=timezone.utc)
+            return dt.replace(tzinfo=PHT_TZ)
         return dt
     
     @staticmethod
@@ -269,7 +272,7 @@ class DateTimeService:
     
     @staticmethod
     def calculate_expiry_time(duration: VisitDuration) -> datetime:
-        now = DateTimeService.now_utc()
+        now = DateTimeService.now_pht()
         duration_map = {
             VisitDuration.TWO_HOURS: timedelta(hours=2),
             VisitDuration.FOUR_HOURS: timedelta(hours=4),
@@ -309,7 +312,7 @@ class BarcodeService:
     @staticmethod
     def generate_barcode_data(registration: VisitorRegistration) -> str:
         """Generate barcode data for visitor registration"""
-        return f"VISITOR_{registration.plate_number}_{registration.id}"
+        return registration.plate_number
 
 # Repository Classes (Data Access Layer)
 class BaseRepository(ABC):
@@ -466,7 +469,7 @@ class VisitorRegistrationRepository(BaseRepository):
     async def find_all_active(self) -> List[dict]:
         cursor = self.collection.find({
             "is_active": True,
-            "expires_at": {"$gt": datetime.now(timezone.utc)}
+            "expires_at": {"$gt": DateTimeService.now_pht()}
         })
         docs = await cursor.to_list(1000)
         return [convert_objectid_to_str(doc) for doc in docs]
@@ -474,7 +477,7 @@ class VisitorRegistrationRepository(BaseRepository):
     async def find_expired(self) -> List[dict]:
         cursor = self.collection.find({
             "is_active": True,
-            "expires_at": {"$lte": datetime.now(timezone.utc)}
+            "expires_at": {"$lte": DateTimeService.now_pht()}
         })
         docs = await cursor.to_list(1000)
         return [convert_objectid_to_str(doc) for doc in docs]
@@ -510,7 +513,7 @@ class EntryExitLogRepository(BaseRepository):
         return [convert_objectid_to_str(doc) for doc in docs]
     
     async def count_today(self) -> int:
-        today = DateTimeService.now_utc().replace(hour=0, minute=0, second=0, microsecond=0)
+        today = DateTimeService.now_pht().replace(hour=0, minute=0, second=0, microsecond=0)
         tomorrow = today + timedelta(days=1)
         return await self.collection.count_documents({
             "timestamp": {"$gte": today, "$lt": tomorrow}
@@ -679,6 +682,16 @@ class ScanService:
         # Get latest log for this vehicle
         latest_log = await self.log_repo.find_latest_by_plate(scan_data.plate_number)
         
+        # Prevent double scanning (cooldown of 60 seconds)
+        if latest_log:
+            last_timestamp = self.datetime_service.ensure_timezone_aware(latest_log['timestamp'])
+            time_diff = (self.datetime_service.now_pht() - last_timestamp).total_seconds()
+            if time_diff < 60:
+                raise HTTPException(
+                    status_code=429, 
+                    detail="Vehicle was just scanned. Please wait a minute before scanning again."
+                )
+        
         # Determine action (entry or exit)
         is_inside = latest_log['is_inside'] if latest_log else False
         action = LogAction.EXIT if is_inside else LogAction.ENTRY
@@ -690,14 +703,14 @@ class ScanService:
             "scan_method": scan_data.scan_method,
             "guard_username": guard_username,
             "is_inside": not is_inside,
-            "timestamp": self.datetime_service.now_utc(),
+            "timestamp": self.datetime_service.now_pht(),
             "registration_type": registration_type
         }
         
         if action == LogAction.ENTRY:
-            log_data["entry_time"] = self.datetime_service.now_utc()
+            log_data["entry_time"] = self.datetime_service.now_pht()
         else:
-            log_data["exit_time"] = self.datetime_service.now_utc()
+            log_data["exit_time"] = self.datetime_service.now_pht()
             if latest_log and latest_log.get('entry_time'):
                 log_data["entry_time"] = latest_log['entry_time']
         
@@ -747,7 +760,7 @@ class DashboardService:
         inside_vehicles = [convert_objectid_to_str(doc) for doc in inside_vehicles_raw]
         
         status_list = []
-        current_time = self.datetime_service.now_utc()
+        current_time = self.datetime_service.now_pht()
         
         # Batch fetch all vehicles and visitors to avoid N+1 queries
         all_plate_numbers = [item['latest_log']['plate_number'] for item in inside_vehicles]
@@ -1195,7 +1208,7 @@ async def create_document(
     
     # Add required fields
     document_data['id'] = str(uuid.uuid4())
-    document_data['created_at'] = DateTimeService.now_utc()
+    document_data['created_at'] = DateTimeService.now_pht()
     
     # Special handling for users (hash password)
     if collection_name == 'users' and 'password' in document_data:
