@@ -12,6 +12,8 @@ import { API, DA_LOGO_URL } from '../../services/constants';
 import OCRService from '../../services/OCRService';
 import BarcodeGenerator from '../../services/BarcodeService';
 import { OfflineStorageManager } from '../../services/OfflineService';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Label } from "../ui/label";
@@ -19,10 +21,10 @@ import { Alert, AlertDescription } from "../ui/alert";
 import { Textarea } from "../ui/textarea";
 import { Progress } from "../ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { 
-  Camera, 
-  UserPlus, 
-  CheckCircle, 
+import {
+  Camera,
+  UserPlus,
+  CheckCircle,
   Download,
   RefreshCw,
   Eye,
@@ -33,7 +35,7 @@ const MobileRegistration = () => {
   // Wizard step state (1-4)
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-  
+
   // Image and OCR state
   const [licensePhoto, setLicensePhoto] = useState(null);
   const [ocrProcessing, setOcrProcessing] = useState(false);
@@ -41,7 +43,7 @@ const MobileRegistration = () => {
   const [retryCount, setRetryCount] = useState(0);
   const [ocrDebugText, setOcrDebugText] = useState('');
   const [showOcrDebug, setShowOcrDebug] = useState(false);
-  
+
   // Form data
   const [formData, setFormData] = useState({
     plate_number: '',
@@ -83,9 +85,9 @@ const MobileRegistration = () => {
         setOcrProgress(progress);
         setMessage({ type: 'info', text: status });
       });
-      
+
       console.log('OCR Result:', result);
-      
+
       if (result.success) {
         // Update form with extracted data
         setFormData(prev => ({
@@ -95,43 +97,43 @@ const MobileRegistration = () => {
             ...result.data
           }
         }));
-        
+
         // Build message showing extracted fields
         const extractedFields = Object.entries(result.data)
           .filter(([key, value]) => value && value.trim && value.trim().length > 0)
           .map(([key, value]) => `${key.replace('_', ' ')}: ${value}`)
           .join(', ');
-        
+
         if (extractedFields) {
-          setMessage({ 
-            type: 'success', 
-            text: `OCR extracted: ${extractedFields}. Please verify in the next step.` 
+          setMessage({
+            type: 'success',
+            text: `OCR extracted: ${extractedFields}. Please verify in the next step.`
           });
         } else {
-          setMessage({ 
-            type: 'warning', 
-            text: 'OCR completed but no clear data found. You can input manually.' 
+          setMessage({
+            type: 'warning',
+            text: 'OCR completed but no clear data found. You can input manually.'
           });
         }
-        
+
         setTimeout(() => setStep(2), 2000);
       } else {
-        setMessage({ 
-          type: 'error', 
-          text: `OCR failed: ${result.error || 'Unable to read license clearly'}. Try again or input manually.` 
+        setMessage({
+          type: 'error',
+          text: `OCR failed: ${result.error || 'Unable to read license clearly'}. Try again or input manually.`
         });
       }
-      
+
       // Store raw text for debugging
       if (result.rawText) {
         setOcrDebugText(result.rawText);
       }
-      
+
     } catch (error) {
       console.error('OCR processing error:', error);
-      setMessage({ 
-        type: 'error', 
-        text: 'Error processing image. Please try again with better lighting or input manually.' 
+      setMessage({
+        type: 'error',
+        text: 'Error processing image. Please try again with better lighting or input manually.'
       });
     } finally {
       setOcrProcessing(false);
@@ -174,7 +176,7 @@ const MobileRegistration = () => {
     }
 
     setLoading(true);
-    
+
     try {
       // Convert license photo to base64
       let licensePhotoBase64 = null;
@@ -197,21 +199,21 @@ const MobileRegistration = () => {
       } else {
         // Store offline for later sync
         await OfflineStorageManager.storeOfflineData('/visitor-registration', registrationData);
-        setMessage({ 
-          type: 'success', 
-          text: 'Registration stored offline. Will sync when online.' 
+        setMessage({
+          type: 'success',
+          text: 'Registration stored offline. Will sync when online.'
         });
         setStep(4);
       }
     } catch (error) {
       console.error('Registration error:', error);
-      
+
       if (!isOnline) {
         // Store offline on network error
         await OfflineStorageManager.storeOfflineData('/visitor-registration', formData);
-        setMessage({ 
-          type: 'success', 
-          text: 'Registration stored offline. Will sync when online.' 
+        setMessage({
+          type: 'success',
+          text: 'Registration stored offline. Will sync when online.'
         });
         setStep(4);
       } else {
@@ -224,16 +226,35 @@ const MobileRegistration = () => {
   };
 
   /**
-   * Download barcode PDF for printing
+   * Download barcode PDF for printing utilizing the official DA RFO V Sticker layout
    */
-  const downloadBarcode = () => {
-    if (registrationResult) {
-      const pdf = BarcodeGenerator.generatePDF(
-        registrationResult.plate_number,
-        registrationResult.barcode_data,
-        registrationResult.expires_at
-      );
-      pdf.save(`${registrationResult.plate_number}_barcode.pdf`);
+  const downloadBarcode = async () => {
+    if (!registrationResult) return;
+    
+    try {
+      // Find the hidden sticker container
+      const stickerElement = document.getElementById('sticker-render-target');
+      if (stickerElement) {
+        const canvas = await html2canvas(stickerElement, { 
+          scale: 4, // High density for waterproof 3x2 printing
+          useCORS: true,
+          backgroundColor: null 
+        });
+        
+        const imgData = canvas.toDataURL('image/png');
+        
+        // 3x2 inches landscape
+        const pdf = new jsPDF({
+          orientation: 'landscape',
+          unit: 'in',
+          format: [3, 2]
+        });
+        
+        pdf.addImage(imgData, 'PNG', 0, 0, 3, 2);
+        pdf.save(`DA_Sticker_${registrationResult.plate_number}.pdf`);
+      }
+    } catch (e) {
+      console.error("Failed to generate precise sticker PDF", e);
     }
   };
 
@@ -286,7 +307,7 @@ const MobileRegistration = () => {
                 <div className="border-2 border-dashed border-green-300 rounded-lg p-8 text-center">
                   <Camera className="w-16 h-16 mx-auto mb-4 text-green-600" />
                   <p className="text-gray-600 mb-4">Take a photo of the driver&apos;s license</p>
-                  
+
                   <input
                     type="file"
                     accept="image/*"
@@ -296,7 +317,7 @@ const MobileRegistration = () => {
                     id="license-camera"
                     data-testid="license-camera-input"
                   />
-                  
+
                   <label
                     htmlFor="license-camera"
                     className="inline-flex items-center px-6 py-3 bg-green-600 text-white rounded-lg cursor-pointer hover:bg-green-700"
@@ -454,7 +475,7 @@ const MobileRegistration = () => {
                 </div>
                 <div>
                   <Label>Gender</Label>
-                  <Select 
+                  <Select
                     value={formData.driver_license.gender}
                     onValueChange={(value) => setFormData(prev => ({
                       ...prev,
@@ -502,8 +523,8 @@ const MobileRegistration = () => {
                 <Button onClick={() => setStep(1)} variant="outline" className="flex-1">
                   Back
                 </Button>
-                <Button 
-                  onClick={() => setStep(3)} 
+                <Button
+                  onClick={() => setStep(3)}
                   className="flex-1 bg-green-600 hover:bg-green-700"
                   data-testid="step2-next-btn"
                 >
@@ -547,8 +568,8 @@ const MobileRegistration = () => {
 
               <div>
                 <Label>Vehicle Type</Label>
-                <Select 
-                  value={formData.vehicle_type} 
+                <Select
+                  value={formData.vehicle_type}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, vehicle_type: value }))}
                 >
                   <SelectTrigger>
@@ -582,8 +603,8 @@ const MobileRegistration = () => {
 
               <div>
                 <Label>Visit Duration</Label>
-                <Select 
-                  value={formData.visit_duration} 
+                <Select
+                  value={formData.visit_duration}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, visit_duration: value }))}
                 >
                   <SelectTrigger>
@@ -657,7 +678,7 @@ const MobileRegistration = () => {
                 {/* Barcode display */}
                 <div className="text-center">
                   <div className="bg-white border-2 border-gray-200 rounded-lg p-4 mb-4">
-                    <canvas 
+                    <canvas
                       ref={(canvas) => {
                         if (canvas && registrationResult.barcode_data) {
                           JsBarcode(canvas, registrationResult.barcode_data, {
@@ -670,7 +691,7 @@ const MobileRegistration = () => {
                       }}
                     />
                   </div>
-                  
+
                   <Button
                     onClick={downloadBarcode}
                     className="w-full bg-green-600 hover:bg-green-700 mb-3"
@@ -693,7 +714,6 @@ const MobileRegistration = () => {
                 <UserPlus className="w-4 h-4 mr-2" />
                 Register Another Visitor
               </Button>
-              
               <Button
                 onClick={() => navigate('/')}
                 variant="outline"
@@ -702,6 +722,107 @@ const MobileRegistration = () => {
                 Back to Dashboard
               </Button>
             </div>
+            
+            {/* BEAUTIFUL PREMIUM DA STICKER DESIGN */}
+            {registrationResult && registrationResult.barcode_data && (
+              <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
+                <div 
+                  id="sticker-render-target"
+                  style={{
+                    width: '3in',
+                    height: '2in',
+                    backgroundColor: '#ffffff',
+                    position: 'relative',
+                    fontFamily: '"Inter", "Segoe UI", Arial, sans-serif',
+                    overflow: 'hidden',
+                    border: '2px solid #064e3b',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  {/* Premium Header Strip */}
+                  <div style={{
+                    background: 'linear-gradient(135deg, #059669 0%, #064e3b 100%)',
+                    height: '52px',
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '0 8px',
+                    boxSizing: 'border-box',
+                    borderBottom: '4px solid #fbbf24'
+                  }}>
+                    <img src="/Bicol_Region_Logo.png" alt="Bicol" style={{ height: '36px', width: '36px', objectFit: 'contain' }} crossOrigin="anonymous" />
+                    
+                    <div style={{ textAlign: 'center', flex: 1, padding: '0 5px' }}>
+                      <div style={{ color: '#ffffff', fontSize: '7pt', letterSpacing: '0.8px', opacity: 0.95, lineHeight: 1, marginBottom: '2px', fontWeight: '600' }}>
+                        DEPARTMENT OF AGRICULTURE
+                      </div>
+                      <div style={{ color: '#fbbf24', fontSize: '11pt', fontWeight: '900', letterSpacing: '1px', lineHeight: 1 }}>
+                        VEHICLE PASS
+                      </div>
+                    </div>
+
+                    <img src={DA_LOGO_URL} alt="DA Logo" style={{ height: '36px', width: '36px', objectFit: 'contain' }} crossOrigin="anonymous" />
+                  </div>
+
+                  {/* Main Body (High Contrast for Scanning) */}
+                  <div style={{
+                    height: 'calc(100% - 52px - 20px)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    backgroundColor: '#ffffff'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '0 10px', height: '48px', marginTop: '4px' }}>
+                      <canvas 
+                        ref={(canvas) => {
+                          if (canvas && registrationResult.barcode_data) {
+                            JsBarcode(canvas, registrationResult.barcode_data, {
+                              format: 'CODE128',
+                              width: 1.8,
+                              height: 48,
+                              displayValue: false,
+                              margin: 0,
+                              lineColor: '#111827'
+                            });
+                          }
+                        }}
+                      />
+                    </div>
+                    
+                    {/* Plate Number incredibly prominent */}
+                    <div style={{
+                      color: '#064e3b',
+                      fontWeight: '900',
+                      fontSize: '20pt',
+                      letterSpacing: '2.5px',
+                      marginTop: '4px',
+                      fontFamily: '"Arial Black", "Segoe UI Black", Arial, sans-serif'
+                    }}>
+                      {registrationResult.plate_number}
+                    </div>
+                  </div>
+
+                  {/* Clean Footer Strip */}
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    width: '100%',
+                    height: '20px',
+                    backgroundColor: '#f3f4f6',
+                    borderTop: '1px solid #e5e7eb',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}>
+                    <div style={{ color: '#4b5563', fontSize: '6pt', fontWeight: 'bold', letterSpacing: '1px' }}>
+                      REGION V • OFFICIAL GATE PASS STICKER
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
