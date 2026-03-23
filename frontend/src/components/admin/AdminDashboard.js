@@ -35,7 +35,9 @@ import {
   Smartphone,
   FileText,
   Timer,
-  BarChart2
+  BarChart2,
+  Edit,
+  Trash2
 } from "lucide-react";
 
 const AdminDashboard = () => {
@@ -49,6 +51,11 @@ const AdminDashboard = () => {
   // Modal state
   const [selectedVisitor, setSelectedVisitor] = useState(null);
   const [isVisitorModalOpen, setIsVisitorModalOpen] = useState(false);
+  
+  // Visitor Action state
+  const [deleteVisitorConfirm, setDeleteVisitorConfirm] = useState(null);
+  const [editingVisitor, setEditingVisitor] = useState(null);
+  const [isEditVisitorModalOpen, setIsEditVisitorModalOpen] = useState(false);
   
   // New vehicle form state
   const [newVehicle, setNewVehicle] = useState({
@@ -136,6 +143,44 @@ const AdminDashboard = () => {
     } catch (error) {
       console.error('Error creating vehicle:', error);
       alert('Error creating vehicle: ' + (error.response?.data?.detail || 'Unknown error'));
+    }
+  };
+
+  /**
+   * Handle Visitor Deletion
+   */
+  const handleDeleteVisitor = async (docId, e) => {
+    if (e) e.stopPropagation();
+    if (deleteVisitorConfirm === docId) {
+      try {
+        await axios.delete(`${API}/database/visitor_registrations/${docId}`);
+        fetchDashboardData();
+        setDeleteVisitorConfirm(null);
+        if (selectedVisitor?.id === docId) setIsVisitorModalOpen(false);
+        alert('Visitor deleted successfully!');
+      } catch (error) {
+        console.error('Error deleting visitor:', error);
+        alert('Error deleting visitor: ' + (error.response?.data?.detail || 'Unknown error'));
+      }
+    } else {
+      setDeleteVisitorConfirm(docId);
+      setTimeout(() => setDeleteVisitorConfirm(null), 3000);
+    }
+  };
+
+  /**
+   * Handle Visitor Edit Save
+   */
+  const handleEditVisitorSave = async () => {
+    try {
+      await axios.put(`${API}/database/visitor_registrations/${editingVisitor.id}`, editingVisitor);
+      setIsEditVisitorModalOpen(false);
+      setEditingVisitor(null);
+      fetchDashboardData();
+      alert('Visitor updated successfully!');
+    } catch (error) {
+      console.error('Error updating visitor:', error);
+      alert('Error updating visitor: ' + (error.response?.data?.detail || 'Unknown error'));
     }
   };
 
@@ -382,61 +427,84 @@ const AdminDashboard = () => {
               <CardHeader>
                 <CardTitle className="text-green-700">Active Visitor Registrations</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {visitors.map((visitor) => (
-                    <div 
-                      key={visitor.id} 
-                      className="p-4 border rounded-lg bg-blue-50 border-blue-200 hover:bg-blue-100 cursor-pointer transition-colors"
-                      onClick={() => {
-                        setSelectedVisitor(visitor);
-                        setIsVisitorModalOpen(true);
-                      }}
-                      data-testid={`visitor-card-${visitor.id}`}
-                    >
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center space-x-3">
-                          <Badge className="bg-blue-600">{visitor.plate_number}</Badge>
-                          <Badge variant="outline">{visitor.vehicle_type.toUpperCase()}</Badge>
-                          <Badge 
-                            variant={new Date(visitor.expires_at) > new Date() ? 'default' : 'destructive'}
-                            className="text-xs"
-                          >
-                            {new Date(visitor.expires_at) > new Date() ? 'ACTIVE' : 'EXPIRED'}
-                          </Badge>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <Eye className="w-4 h-4 text-blue-600" />
-                          <span className="text-sm text-blue-600 font-medium">View Details</span>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                        <div>
-                          <p><span className="font-medium">Driver:</span> {visitor.driver_license.first_name} {visitor.driver_license.last_name}</p>
-                          <p><span className="font-medium">License:</span> {visitor.driver_license.license_number}</p>
-                        </div>
-                        <div>
-                          <p><span className="font-medium">Purpose:</span> {visitor.purpose_of_visit}</p>
-                          <p><span className="font-medium">Visiting:</span> {visitor.department_visiting || 'N/A'}</p>
-                        </div>
-                      </div>
-                      <div className="mt-2 text-xs text-gray-500">
-                        <span>Expires: {new Date(visitor.expires_at).toLocaleString()}</span>
-                        {visitor.driver_license.license_photo_path && (
-                          <span className="ml-4 inline-flex items-center">
-                            <Camera className="w-3 h-3 mr-1" />
-                            License photo available
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                  {visitors.length === 0 && (
-                    <p className="text-center text-gray-500 py-8">No active visitor registrations</p>
-                  )}
+              <CardContent className="p-6 pt-0">
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse border border-gray-200 text-sm">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="border border-gray-200 px-3 py-2 text-left">Plate Number</th>
+                        <th className="border border-gray-200 px-3 py-2 text-left">Type</th>
+                        <th className="border border-gray-200 px-3 py-2 text-left">Driver Name</th>
+                        <th className="border border-gray-200 px-3 py-2 text-left">Purpose</th>
+                        <th className="border border-gray-200 px-3 py-2 text-left">Visiting</th>
+                        <th className="border border-gray-200 px-3 py-2 text-left">Status</th>
+                        <th className="border border-gray-200 px-3 py-2 text-left">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visitors.map((visitor) => (
+                        <tr 
+                          key={visitor.id} 
+                          className="hover:bg-blue-50 cursor-pointer transition-colors"
+                          onClick={() => { setSelectedVisitor(visitor); setIsVisitorModalOpen(true); }}
+                        >
+                          <td className="border border-gray-200 px-3 py-2">
+                            <Badge className="bg-blue-600">{visitor.plate_number}</Badge>
+                          </td>
+                          <td className="border border-gray-200 px-3 py-2 capitalize">{visitor.vehicle_type}</td>
+                          <td className="border border-gray-200 px-3 py-2 capitalize">
+                            {[visitor.driver_license.first_name, visitor.driver_license.middle_name, visitor.driver_license.last_name].filter(Boolean).join(' ')}
+                          </td>
+                          <td className="border border-gray-200 px-3 py-2">{visitor.purpose_of_visit}</td>
+                          <td className="border border-gray-200 px-3 py-2">{visitor.department_visiting || 'N/A'}</td>
+                          <td className="border border-gray-200 px-3 py-2">
+                            <Badge 
+                              variant={new Date(visitor.expires_at) > new Date() ? 'default' : 'destructive'}
+                              className={`text-xs ${new Date(visitor.expires_at) > new Date() ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
+                            >
+                              {new Date(visitor.expires_at) > new Date() ? 'ACTIVE' : 'EXPIRED'}
+                            </Badge>
+                          </td>
+                          <td className="border border-gray-200 px-3 py-2">
+                            <div className="flex items-center space-x-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingVisitor({...visitor});
+                                  setIsEditVisitorModalOpen(true);
+                                }}
+                                title="Edit"
+                              >
+                                <Edit className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant={deleteVisitorConfirm === visitor.id ? "destructive" : "outline"}
+                                onClick={(e) => handleDeleteVisitor(visitor.id, e)}
+                                title="Remove"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                                {deleteVisitorConfirm === visitor.id && <span className="ml-1 text-xs">Confirm?</span>}
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                      {visitors.length === 0 && (
+                        <tr>
+                          <td colSpan="7" className="border border-gray-200 px-4 py-8 text-center text-gray-500">
+                            No active visitor registrations
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
                 </div>
               </CardContent>
             </Card>
+            
             
             {/* Visitor Detail Modal */}
             <VisitorDetailModal 
@@ -447,6 +515,49 @@ const AdminDashboard = () => {
                 setSelectedVisitor(null);
               }}
             />
+
+            {/* Edit Visitor Modal */}
+            <Dialog open={isEditVisitorModalOpen} onOpenChange={setIsEditVisitorModalOpen}>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Edit Visitor Registration</DialogTitle>
+                </DialogHeader>
+                {editingVisitor && (
+                  <div className="space-y-4 py-4">
+                    <div>
+                      <Label htmlFor="plate_number">Plate Number</Label>
+                      <Input
+                        id="plate_number"
+                        value={editingVisitor.plate_number}
+                        onChange={(e) => setEditingVisitor({...editingVisitor, plate_number: e.target.value.toUpperCase()})}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="purpose">Purpose of Visit</Label>
+                      <Input
+                        id="purpose"
+                        value={editingVisitor.purpose_of_visit}
+                        onChange={(e) => setEditingVisitor({...editingVisitor, purpose_of_visit: e.target.value})}
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="visiting">Department Visiting</Label>
+                      <Input
+                        id="visiting"
+                        value={editingVisitor.department_visiting}
+                        onChange={(e) => setEditingVisitor({...editingVisitor, department_visiting: e.target.value})}
+                        className="mt-1"
+                      />
+                    </div>
+                    <Button onClick={handleEditVisitorSave} className="w-full bg-green-600 hover:bg-green-700">
+                      Save Changes
+                    </Button>
+                  </div>
+                )}
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           {/* Manage Vehicles Tab */}

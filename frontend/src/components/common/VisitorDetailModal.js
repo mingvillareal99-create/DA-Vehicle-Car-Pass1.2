@@ -2,7 +2,7 @@
  * Visitor Detail Modal Component
  * Displays full details of a visitor registration in a dialog
  */
-import React from 'react';
+import React, { useState } from 'react';
 import JsBarcode from 'jsbarcode';
 import BarcodeGenerator from '../../services/BarcodeService';
 import { BACKEND_URL } from '../../services/constants';
@@ -11,9 +11,11 @@ import { Button } from "../ui/button";
 import { Label } from "../ui/label";
 import { Badge } from "../ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
-import { Eye, Camera, CreditCard, Calendar, MapPin, Download } from "lucide-react";
+import { Eye, Camera, CreditCard, Calendar, MapPin, Download, X } from "lucide-react";
 
 const VisitorDetailModal = ({ visitor, isOpen, onClose }) => {
+  const [isPhotoExpanded, setIsPhotoExpanded] = useState(false);
+
   // Don't render if no visitor selected
   if (!visitor) return null;
 
@@ -30,14 +32,15 @@ const VisitorDetailModal = ({ visitor, isOpen, onClose }) => {
   const isActive = new Date(visitor.expires_at) > new Date();
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="text-green-700 flex items-center">
-            <Eye className="w-5 h-5 mr-2" />
-            Visitor Details - {visitor.plate_number}
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={isOpen} onOpenChange={onClose}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-green-700 flex items-center">
+              <Eye className="w-5 h-5 mr-2" />
+              Visitor Details - {visitor.plate_number}
+            </DialogTitle>
+          </DialogHeader>
         
         <div className="space-y-6">
           {/* Vehicle Information Section */}
@@ -78,10 +81,8 @@ const VisitorDetailModal = ({ visitor, isOpen, onClose }) => {
                 <div className="space-y-4">
                   <div>
                     <Label className="text-sm font-medium text-gray-600">Full Name</Label>
-                    <p className="font-semibold">
-                      {visitor.driver_license.first_name} 
-                      {visitor.driver_license.middle_name && ` ${visitor.driver_license.middle_name}`} 
-                      {visitor.driver_license.last_name}
+                    <p className="font-semibold capitalize">
+                      {[visitor.driver_license.first_name, visitor.driver_license.middle_name, visitor.driver_license.last_name].filter(Boolean).join(' ')}
                     </p>
                   </div>
                   <div>
@@ -120,9 +121,11 @@ const VisitorDetailModal = ({ visitor, isOpen, onClose }) => {
                     {visitor.driver_license.license_photo_path ? (
                       <div className="text-center">
                         <img 
-                          src={`${BACKEND_URL}/uploads/${visitor.driver_license.license_photo_path.split('/').pop()}`}
+                          src={`${BACKEND_URL}/uploads/${visitor.driver_license.license_photo_path.split(/[\\/]/).pop()}`}
                           alt="Driver's License"
-                          className="max-w-full max-h-48 mx-auto rounded-lg shadow-md"
+                          className="max-w-full max-h-48 mx-auto rounded-lg shadow-md cursor-pointer hover:opacity-90 transition-opacity"
+                          onClick={() => setIsPhotoExpanded(true)}
+                          title="Click to enlarge"
                           onError={(e) => {
                             e.target.style.display = 'none';
                             e.target.nextSibling.style.display = 'block';
@@ -169,7 +172,7 @@ const VisitorDetailModal = ({ visitor, isOpen, onClose }) => {
                 <Label className="text-sm font-medium text-gray-600">Status</Label>
                 <Badge 
                   variant={isActive ? 'default' : 'destructive'} 
-                  className="ml-2"
+                  className={`ml-2 ${isActive ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
                 >
                   {isActive ? 'ACTIVE' : 'EXPIRED'}
                 </Badge>
@@ -228,6 +231,30 @@ const VisitorDetailModal = ({ visitor, isOpen, onClose }) => {
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Expanded Photo Modal */}
+    {visitor?.driver_license?.license_photo_path && (
+      <Dialog open={isPhotoExpanded} onOpenChange={setIsPhotoExpanded}>
+        <DialogContent hideCloseButton={true} className="max-w-4xl p-0 bg-transparent border-none shadow-none">
+          <DialogTitle className="sr-only">Expanded Driver's License Photo</DialogTitle>
+          <div className="relative mx-auto w-fit">
+            <button
+              onClick={() => setIsPhotoExpanded(false)}
+              className="absolute -top-4 -right-4 bg-white text-gray-800 rounded-full p-2 shadow-xl hover:bg-gray-100 hover:scale-110 transition-all z-50 border border-gray-200"
+              title="Close image"
+            >
+              <X className="w-6 h-6" />
+            </button>
+            <img 
+              src={`${BACKEND_URL}/uploads/${visitor.driver_license.license_photo_path.split(/[\\/]/).pop()}`}
+              alt="Driver's License Expanded"
+              className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
+    )}
+    </>
   );
 };
 
