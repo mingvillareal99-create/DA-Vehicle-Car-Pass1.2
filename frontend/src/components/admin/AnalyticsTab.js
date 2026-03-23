@@ -87,7 +87,7 @@ const AnalyticsTab = ({ logs = [], vehicles = [] }) => {
 
   // Aggregate data for Vehicle Types
   const vehicleTypeData = useMemo(() => {
-    const typeCount = { company: 0, private: 0, visitor: 0 };
+    const typeCount = { da_government: 0, government: 0, public: 0, private: 0, visitor: 0 };
     
     // We use entries to count unique visits by type in the period
     const entries = filteredLogs.filter(log => log.action === 'entry');
@@ -99,7 +99,9 @@ const AnalyticsTab = ({ logs = [], vehicles = [] }) => {
       } else {
         const registered = vehicles.find(v => v.plate_number === log.plate_number);
         if (registered) {
-           if (registered.vehicle_type === 'company') typeCount.company++;
+           if (registered.vehicle_type === 'da_government') typeCount.da_government++;
+           else if (registered.vehicle_type === 'government') typeCount.government++;
+           else if (registered.vehicle_type === 'public') typeCount.public++;
            else typeCount.private++;
         } else {
             // Default to private if unknown (though shouldn't happen usually)
@@ -109,7 +111,9 @@ const AnalyticsTab = ({ logs = [], vehicles = [] }) => {
     });
 
     return [
-      { name: 'DA Company', value: typeCount.company },
+      { name: 'DA Government', value: typeCount.da_government },
+      { name: 'Government', value: typeCount.government },
+      { name: 'Public', value: typeCount.public },
       { name: 'Private', value: typeCount.private },
       { name: 'Visitor', value: typeCount.visitor }
     ].filter(item => item.value > 0);

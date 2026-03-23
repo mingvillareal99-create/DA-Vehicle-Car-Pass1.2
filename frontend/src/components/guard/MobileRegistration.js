@@ -577,7 +577,9 @@ const MobileRegistration = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="private">Private Vehicle</SelectItem>
-                    <SelectItem value="company">DA Government Vehicle</SelectItem>
+                    <SelectItem value="da_government">DA Government Vehicle</SelectItem>
+                    <SelectItem value="government">Government Vehicle</SelectItem>
+                    <SelectItem value="public">Public Vehicle</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

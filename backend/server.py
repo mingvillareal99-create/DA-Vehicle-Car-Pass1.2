@@ -86,7 +86,9 @@ class UserRole(str, Enum):
 
 class VehicleType(str, Enum):
     PRIVATE = "private"
-    COMPANY = "company"
+    DA_GOVERNMENT = "da_government"
+    PUBLIC = "public"
+    GOVERNMENT = "government"
 
 class LogAction(str, Enum):
     ENTRY = "entry"
@@ -215,6 +217,12 @@ class SyncData(BaseModel):
     """Model for syncing offline data"""
     visitor_registrations: List[Dict] = []
     entry_exit_logs: List[Dict] = []
+
+class Notification(BaseEntity):
+    title: str
+    message: str
+    is_read: bool = False
+    reference_id: Optional[str] = None
 
 # Service Classes (Business Logic Layer)
 class PasswordService:
@@ -383,7 +391,7 @@ class VehicleRepository(BaseRepository):
             return {
                 "id": str(da_doc.get("_id")),
                 "plate_number": plate_number_extracted if plate_number_extracted else plate_number,
-                "vehicle_type": VehicleType.COMPANY.value, # Defaulting imported vehicles to company/government
+                "vehicle_type": VehicleType.DA_GOVERNMENT.value, # Defaulting imported vehicles to da_government
                 "owner_name": owner_name,
                 "department": da_str.get("employment", {}).get("classification"),
                 "brand": da_str.get("vehicle", {}).get("brand"),
@@ -419,7 +427,7 @@ class VehicleRepository(BaseRepository):
             vehicles.append({
                 "id": str(da_doc.get("_id")),
                 "plate_number": plate_number,
-                "vehicle_type": VehicleType.COMPANY.value,
+                "vehicle_type": VehicleType.DA_GOVERNMENT.value,
                 "owner_name": owner_name,
                 "department": da_str.get("employment", {}).get("classification"),
                 "brand": da_str.get("vehicle", {}).get("brand"),
@@ -801,8 +809,9 @@ class DashboardService:
                     entry_time = self.datetime_service.ensure_timezone_aware(entry_time)
                     duration_hours = self.datetime_service.calculate_duration_hours(entry_time, current_time)
                     
-                    # Check overstaying for private vehicles (8 hours limit)
-                    if vehicle_info.get('vehicle_type') == VehicleType.PRIVATE and duration_hours > 8:
+                    # Check overstaying for applicable vehicles (8 hours limit)
+                    applicable_types = [VehicleType.PRIVATE, VehicleType.PUBLIC, VehicleType.GOVERNMENT]
+                    if vehicle_info.get('vehicle_type') in applicable_types and duration_hours > 8:
                         is_overstaying = True
                     
                     # Check overstaying for expired visitors
@@ -1222,6 +1231,24 @@ async def create_document(
         "id": document_data['id'],
         "inserted_id": str(result.inserted_id)
     }
+
+@api_router.get("/notifications")
+async def get_notifications(current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    cursor = db.notifications.find({}).sort("created_at", -1).limit(50)
+    docs = await cursor.to_list(50)
+    for doc in docs:
+        doc['_id'] = str(doc['_id'])
+    return docs
+
+@api_router.put("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, current_user: dict = Depends(get_current_user)):
+    if current_user['role'] != UserRole.ADMIN:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    await db.notifications.update_one({"id": notification_id}, {"$set": {"is_read": True}})
+    return {"success": True}
+
 app.include_router(api_router)
 
 # Serve uploaded files
@@ -1246,3 +1273,34 @@ logger = logging.getLogger(__name__)
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+import asyncio
+
+async def monitor_overstaying():
+    while True:
+        try:
+            dashboard_service = DashboardService()
+            status_list = await dashboard_service.get_vehicle_status()
+            for status in status_list:
+                if status.is_overstaying:
+                    plate = status.plate_number
+                    today = datetime.now(PHT_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
+                    existing = await db.notifications.find_one({
+                        "reference_id": plate,
+                        "created_at": {"$gte": today}
+                    })
+                    if not existing:
+                        new_notif = Notification(
+                            title="Vehicle Overstaying",
+                            message=f"Vehicle {plate} has exceeded its allowed duration.",
+                            reference_id=plate
+                        )
+                        await db.notifications.insert_one(new_notif.dict())
+        except Exception as e:
+            logger.error(f"Error in monitor_overstaying: {e}")
+        
+        await asyncio.sleep(60 * 15) # Check every 15 minutes
+
+@app.on_event("startup")
+async def startup_event():
+    asyncio.create_task(monitor_overstaying())

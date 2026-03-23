@@ -37,7 +37,8 @@ import {
   Timer,
   BarChart2,
   Edit,
-  Trash2
+  Trash2,
+  Bell
 } from "lucide-react";
 
 const AdminDashboard = () => {
@@ -47,6 +48,8 @@ const AdminDashboard = () => {
   const [visitors, setVisitors] = useState([]);
   const [logs, setLogs] = useState([]);
   const [vehicleStatus, setVehicleStatus] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+
   
   // Modal state
   const [selectedVisitor, setSelectedVisitor] = useState(null);
@@ -60,7 +63,7 @@ const AdminDashboard = () => {
   // New vehicle form state
   const [newVehicle, setNewVehicle] = useState({
     plate_number: '',
-    vehicle_type: 'company',
+    vehicle_type: 'da_government',
     owner_name: '',
     department: '',
     brand: '',
@@ -83,12 +86,13 @@ const AdminDashboard = () => {
    */
   const fetchDashboardData = async () => {
     try {
-      const [statsRes, vehiclesRes, visitorsRes, logsRes, statusRes] = await Promise.all([
+      const [statsRes, vehiclesRes, visitorsRes, logsRes, statusRes, notifRes] = await Promise.all([
         axios.get(`${API}/dashboard-stats`),
         axios.get(`${API}/vehicles`),
         axios.get(`${API}/visitors`),
         axios.get(`${API}/logs?limit=20`),
-        axios.get(`${API}/vehicle-status`)
+        axios.get(`${API}/vehicle-status`),
+        axios.get(`${API}/notifications`)
       ]);
 
       setStats(statsRes.data);
@@ -96,8 +100,20 @@ const AdminDashboard = () => {
       setVisitors(visitorsRes.data);
       setLogs(logsRes.data);
       setVehicleStatus(statusRes.data);
+      setNotifications(notifRes.data);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
+    }
+  };
+
+  const markNotificationAsRead = async (id) => {
+    try {
+      await axios.put(`${API}/notifications/${id}/read`);
+      setNotifications(notifications.map(n => 
+        (n.id === id || n._id === id) ? { ...n, is_read: true } : n
+      ));
+    } catch (error) {
+      console.error('Error marking notification as read:', error);
     }
   };
 
@@ -131,7 +147,7 @@ const AdminDashboard = () => {
       // Reset form
       setNewVehicle({
         plate_number: '',
-        vehicle_type: 'company',
+        vehicle_type: 'da_government',
         owner_name: '',
         department: '',
         brand: '',
@@ -211,6 +227,52 @@ const AdminDashboard = () => {
             </div>
           </div>
           <div className="flex items-center space-x-2">
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="relative p-2 h-10 w-10 border-gray-200 bg-white" data-testid="notifications-bell">
+                  <Bell className="w-5 h-5 text-gray-700" />
+                  {notifications.filter(n => !n.is_read).length > 0 && (
+                    <span className="absolute top-0 right-0 inline-flex items-center justify-center p-1 text-[10px] font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-red-600 rounded-full min-w-4 h-4">
+                      {notifications.filter(n => !n.is_read).length}
+                    </span>
+                  )}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Notifications</DialogTitle>
+                </DialogHeader>
+                <div className="max-h-[60vh] overflow-y-auto space-y-3 pr-2">
+                  {notifications.length === 0 ? (
+                    <p className="text-center text-gray-500 py-4">No notifications yet.</p>
+                  ) : (
+                    notifications.map(notif => {
+                      const id = notif.id || notif._id;
+                      return (
+                        <div key={id} className={`p-3 rounded-lg border ${notif.is_read ? 'bg-gray-50 border-gray-200' : 'bg-red-50 border-red-200'}`}>
+                          <div className="flex justify-between items-start">
+                            <h4 className={`font-semibold ${notif.is_read ? 'text-gray-700' : 'text-red-800'}`}>{notif.title}</h4>
+                            <span className="text-xs text-gray-500">{new Date(notif.created_at).toLocaleString()}</span>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-1">{notif.message}</p>
+                          {!notif.is_read && (
+                            <Button 
+                              variant="ghost" 
+                              size="sm" 
+                              className="mt-2 text-red-600 hover:text-red-800 hover:bg-red-100 h-8 px-2"
+                              onClick={() => markNotificationAsRead(id)}
+                            >
+                              Mark as read
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+
             {!isOnline && (
               <Badge variant="secondary" className="bg-orange-100 text-orange-800">
                 <WifiOff className="w-3 h-3 mr-1" />
@@ -291,7 +353,7 @@ const AdminDashboard = () => {
         <Tabs defaultValue="status" className="space-y-6">
           <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
             <TabsTrigger value="status" data-testid="tab-status">Vehicle Status</TabsTrigger>
-            <TabsTrigger value="logs" data-testid="tab-logs">Entry/Exit Logs</TabsTrigger>
+            <TabsTrigger value="overstaying" data-testid="tab-overstaying" className="text-red-700 font-medium flex items-center"><AlertTriangle className="w-4 h-4 mr-1" /> Overstaying</TabsTrigger>
             <TabsTrigger value="visitors" data-testid="tab-visitors">Visitors</TabsTrigger>
             <TabsTrigger value="vehicles" data-testid="tab-vehicles">Manage Vehicles</TabsTrigger>
             <TabsTrigger value="mobile" data-testid="tab-mobile">Mobile Tools</TabsTrigger>
@@ -301,121 +363,137 @@ const AdminDashboard = () => {
 
           {/* Vehicle Status Tab */}
           <TabsContent value="status">
-            <Card>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-green-700">Vehicles Currently Inside DA Region V Premises</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {vehicleStatus.map((status) => (
+                        <div 
+                          key={status.plate_number} 
+                          className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200"
+                        >
+                          <div className="flex items-center space-x-4">
+                            <Badge 
+                              variant={status.is_overstaying ? 'destructive' : 'default'} 
+                              className={!status.is_overstaying ? 'bg-green-600' : ''}
+                            >
+                              {status.plate_number}
+                            </Badge>
+                            {status.registration_type === 'visitor' && (
+                              <Badge variant="outline" className="text-blue-600 border-blue-200">VISITOR</Badge>
+                            )}
+                            <div>
+                              <p className="font-medium">Inside since: {new Date(status.entry_time).toLocaleString()}</p>
+                              <p className="text-sm text-gray-600">
+                                Duration: {status.duration_hours ? `${status.duration_hours.toFixed(1)} hours` : 'N/A'}
+                              </p>
+                            </div>
+                          </div>
+                          {status.is_overstaying && (
+                            <Badge variant="destructive">
+                              <AlertTriangle className="w-3 h-3 mr-1" />
+                              OVERSTAYING
+                            </Badge>
+                          )}
+                        </div>
+                      ))}
+                      {vehicleStatus.length === 0 && (
+                        <p className="text-center text-gray-500 py-8">No vehicles currently inside</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              <div className="space-y-6">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-green-700">Recent Entry/Exit Logs</CardTitle>
+                  </CardHeader>
+                  <CardContent className="max-h-[600px] overflow-y-auto">
+                    <div className="space-y-3">
+                      {logs.map((log) => (
+                        <div 
+                          key={log.id} 
+                          className="flex items-center justify-between p-3 border rounded-lg bg-green-50 border-green-200"
+                        >
+                          <div className="flex items-center space-x-3">
+                            <Badge 
+                              variant={log.action === 'entry' ? 'default' : 'secondary'} 
+                              className={log.action === 'entry' ? 'bg-green-600' : ''}
+                            >
+                              {log.action === 'entry' ? <LogIn className="w-3 h-3 mr-1" /> : <LogOut className="w-3 h-3 mr-1" />}
+                              {log.action.toUpperCase()}
+                            </Badge>
+                            <span className="font-mono font-semibold">{log.plate_number}</span>
+                            <Badge variant="outline">{log.scan_method}</Badge>
+                            {log.registration_type === 'visitor' && (
+                              <Badge variant="outline" className="text-blue-600 border-blue-200">VISITOR</Badge>
+                            )}
+                            <span className="text-sm text-gray-600 hidden md:inline">Guard: {log.guard_username}</span>
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {new Date(log.timestamp).toLocaleString()}
+                          </div>
+                        </div>
+                      ))}
+                      {logs.length === 0 && (
+                        <p className="text-center text-gray-500 py-8">No scans recorded today</p>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </div>
+          </TabsContent>
+
+          {/* Overstaying Tab */}
+          <TabsContent value="overstaying">
+            <Card className="border-red-200">
               <CardHeader>
-                <CardTitle className="text-green-700">Vehicles Currently Inside DA Region V Premises</CardTitle>
+                <CardTitle className="text-red-700 flex items-center">
+                  <AlertTriangle className="w-5 h-5 mr-2" />
+                  Overstaying Vehicles Monitoring
+                </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {vehicleStatus.map((status) => (
+                  {vehicleStatus.filter(s => s.is_overstaying).map((status) => (
                     <div 
                       key={status.plate_number} 
-                      className="flex items-center justify-between p-4 border rounded-lg bg-green-50 border-green-200"
+                      className="flex items-center justify-between p-4 border rounded-lg bg-red-50 border-red-200"
                     >
                       <div className="flex items-center space-x-4">
-                        <Badge 
-                          variant={status.is_overstaying ? 'destructive' : 'default'} 
-                          className={!status.is_overstaying ? 'bg-green-600' : ''}
-                        >
+                        <Badge variant="destructive">
                           {status.plate_number}
                         </Badge>
                         {status.registration_type === 'visitor' && (
                           <Badge variant="outline" className="text-blue-600 border-blue-200">VISITOR</Badge>
                         )}
                         <div>
-                          <p className="font-medium">Inside since: {new Date(status.entry_time).toLocaleString()}</p>
-                          <p className="text-sm text-gray-600">
-                            Duration: {status.duration_hours ? `${status.duration_hours.toFixed(1)} hours` : 'N/A'}
+                          <p className="font-medium text-red-900">Inside since: {new Date(status.entry_time).toLocaleString()}</p>
+                          <p className="text-sm text-red-700 font-medium">
+                            Duration: {status.duration_hours ? `${status.duration_hours.toFixed(1)} hours` : 'Unknown'}
                           </p>
                         </div>
                       </div>
-                      {status.is_overstaying && (
-                        <Badge variant="destructive">
-                          <AlertTriangle className="w-3 h-3 mr-1" />
-                          OVERSTAYING
-                        </Badge>
-                      )}
+                      <Badge variant="destructive" className="animate-pulse shadow-sm">
+                        <AlertTriangle className="w-3 h-3 mr-1" />
+                        ACTION REQUIRED
+                      </Badge>
                     </div>
                   ))}
-                  {vehicleStatus.length === 0 && (
-                    <p className="text-center text-gray-500 py-8">No vehicles currently inside</p>
+                  {vehicleStatus.filter(s => s.is_overstaying).length === 0 && (
+                    <div className="text-center py-10 bg-green-50 rounded-lg border border-green-100">
+                      <Shield className="w-12 h-12 text-green-400 mx-auto mb-3" />
+                      <p className="text-green-800 font-medium">All clear!</p>
+                      <p className="text-sm text-green-600">No vehicles are currently overstaying.</p>
+                    </div>
                   )}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="text-green-700">Live Daily Scans</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {logs.map((log) => (
-                    <div 
-                      key={log.id} 
-                      className="flex items-center justify-between p-3 border rounded-lg bg-green-50 border-green-200"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <Badge 
-                          variant={log.action === 'entry' ? 'default' : 'secondary'} 
-                          className={log.action === 'entry' ? 'bg-green-600' : ''}
-                        >
-                          {log.action === 'entry' ? <LogIn className="w-3 h-3 mr-1" /> : <LogOut className="w-3 h-3 mr-1" />}
-                          {log.action.toUpperCase()}
-                        </Badge>
-                        <span className="font-mono font-semibold">{log.plate_number}</span>
-                        <Badge variant="outline">{log.scan_method}</Badge>
-                        {log.registration_type === 'visitor' && (
-                          <Badge variant="outline" className="text-blue-600 border-blue-200">VISITOR</Badge>
-                        )}
-                        <span className="text-sm text-gray-600">Guard: {log.guard_username}</span>
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {new Date(log.timestamp).toLocaleString()}
-                      </div>
-                    </div>
-                  ))}
-                  {logs.length === 0 && (
-                    <p className="text-center text-gray-500 py-8">No scans recorded today</p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Entry/Exit Logs Tab */}
-          <TabsContent value="logs">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-green-700">Recent Entry/Exit Logs</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {logs.map((log) => (
-                    <div 
-                      key={log.id} 
-                      className="flex items-center justify-between p-3 border rounded-lg bg-green-50 border-green-200"
-                    >
-                      <div className="flex items-center space-x-3">
-                        <Badge 
-                          variant={log.action === 'entry' ? 'default' : 'secondary'} 
-                          className={log.action === 'entry' ? 'bg-green-600' : ''}
-                        >
-                          {log.action === 'entry' ? <LogIn className="w-3 h-3 mr-1" /> : <LogOut className="w-3 h-3 mr-1" />}
-                          {log.action.toUpperCase()}
-                        </Badge>
-                        <span className="font-mono font-semibold">{log.plate_number}</span>
-                        <Badge variant="outline">{log.scan_method}</Badge>
-                        {log.registration_type === 'visitor' && (
-                          <Badge variant="outline" className="text-blue-600 border-blue-200">VISITOR</Badge>
-                        )}
-                        <span className="text-sm text-gray-600">Guard: {log.guard_username}</span>
-                      </div>
-                      <div className="text-sm text-gray-500">
-                        {new Date(log.timestamp).toLocaleString()}
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </CardContent>
             </Card>
@@ -601,7 +679,9 @@ const AdminDashboard = () => {
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="company">DA Government Vehicle</SelectItem>
+                              <SelectItem value="da_government">DA Government Vehicle</SelectItem>
+                              <SelectItem value="government">Government Vehicle</SelectItem>
+                              <SelectItem value="public">Public Vehicle</SelectItem>
                               <SelectItem value="private">Private Vehicle</SelectItem>
                             </SelectContent>
                           </Select>
@@ -636,7 +716,7 @@ const AdminDashboard = () => {
                             id="classification"
                             value={newVehicle.classification}
                             onChange={(e) => setNewVehicle({...newVehicle, classification: e.target.value})}
-                            placeholder="Gov / Private / Company"
+                            placeholder="Government / Private / DA"
                             className="mt-1"
                           />
                         </div>
@@ -694,7 +774,7 @@ const AdminDashboard = () => {
                       >
                         <td className="border border-gray-200 px-2 py-2 truncate">
                           <div className="truncate" title={vehicle.plate_number}>
-                            <Badge variant={vehicle.vehicle_type === 'private' ? 'secondary' : 'default'} className={vehicle.vehicle_type === 'company' ? 'bg-green-600' : ''}>
+                            <Badge variant={vehicle.vehicle_type === 'private' ? 'secondary' : 'default'} className={vehicle.vehicle_type === 'da_government' ? 'bg-green-600' : ''}>
                               {vehicle.plate_number}
                             </Badge>
                           </div>
