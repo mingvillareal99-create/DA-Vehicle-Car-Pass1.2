@@ -445,14 +445,14 @@ const AdminDashboard = () => {
                       {visitors.map((visitor) => (
                         <tr 
                           key={visitor.id} 
-                          className="hover:bg-blue-50 cursor-pointer transition-colors"
+                          className="hover:bg-blue-50 cursor-pointer transition-colors uppercase"
                           onClick={() => { setSelectedVisitor(visitor); setIsVisitorModalOpen(true); }}
                         >
                           <td className="border border-gray-200 px-3 py-2">
                             <Badge className="bg-blue-600">{visitor.plate_number}</Badge>
                           </td>
-                          <td className="border border-gray-200 px-3 py-2 capitalize">{visitor.vehicle_type}</td>
-                          <td className="border border-gray-200 px-3 py-2 capitalize">
+                          <td className="border border-gray-200 px-3 py-2">{visitor.vehicle_type}</td>
+                          <td className="border border-gray-200 px-3 py-2">
                             {[visitor.driver_license.first_name, visitor.driver_license.middle_name, visitor.driver_license.last_name].filter(Boolean).join(' ')}
                           </td>
                           <td className="border border-gray-200 px-3 py-2">{visitor.purpose_of_visit}</td>
@@ -470,6 +470,7 @@ const AdminDashboard = () => {
                               <Button
                                 size="sm"
                                 variant="outline"
+                                className="hover:bg-yellow-500 hover:text-white transition-colors"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingVisitor({...visitor});
@@ -482,6 +483,7 @@ const AdminDashboard = () => {
                               <Button
                                 size="sm"
                                 variant={deleteVisitorConfirm === visitor.id ? "destructive" : "outline"}
+                                className="hover:bg-red-600 hover:text-white transition-colors"
                                 onClick={(e) => handleDeleteVisitor(visitor.id, e)}
                                 title="Remove"
                               >
