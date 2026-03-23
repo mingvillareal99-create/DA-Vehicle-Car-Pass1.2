@@ -29,7 +29,7 @@ const VisitorDetailModal = ({ visitor, isOpen, onClose }) => {
   /**
    * Check if visitor pass is still valid
    */
-  const isActive = new Date(visitor.expires_at) > new Date();
+  const isActive = visitor.is_active !== false && new Date(visitor.expires_at) > new Date();
 
   return (
     <>

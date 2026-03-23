@@ -189,7 +189,16 @@ const AdminDashboard = () => {
    */
   const handleEditVisitorSave = async () => {
     try {
-      await axios.put(`${API}/database/visitor_registrations/${editingVisitor.id}`, editingVisitor);
+      const payload = { ...editingVisitor };
+      
+      // If setting status to active and it's already physically expired, extend it to end of current day
+      if (payload.is_active !== false && new Date(payload.expires_at) <= new Date()) {
+        const endOfDay = new Date();
+        endOfDay.setHours(23, 59, 59, 999);
+        payload.expires_at = endOfDay.toISOString();
+      }
+
+      await axios.put(`${API}/database/visitor_registrations/${editingVisitor.id}`, payload);
       setIsEditVisitorModalOpen(false);
       setEditingVisitor(null);
       fetchDashboardData();
@@ -503,7 +512,7 @@ const AdminDashboard = () => {
           <TabsContent value="visitors">
             <Card>
               <CardHeader>
-                <CardTitle className="text-green-700">Active Visitor Registrations</CardTitle>
+                <CardTitle className="text-green-700">Visitor Registrations</CardTitle>
               </CardHeader>
               <CardContent className="p-6 pt-0">
                 <div className="overflow-x-auto">
@@ -537,10 +546,10 @@ const AdminDashboard = () => {
                           <td className="border border-gray-200 px-3 py-2">{visitor.department_visiting || 'N/A'}</td>
                           <td className="border border-gray-200 px-3 py-2">
                             <Badge 
-                              variant={new Date(visitor.expires_at) > new Date() ? 'default' : 'destructive'}
-                              className={`text-xs ${new Date(visitor.expires_at) > new Date() ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
+                              variant={(visitor.is_active !== false && new Date(visitor.expires_at) > new Date()) ? 'default' : 'destructive'}
+                              className={`text-xs ${(visitor.is_active !== false && new Date(visitor.expires_at) > new Date()) ? 'bg-green-600 hover:bg-green-700 text-white' : ''}`}
                             >
-                              {new Date(visitor.expires_at) > new Date() ? 'ACTIVE' : 'EXPIRED'}
+                              {(visitor.is_active !== false && new Date(visitor.expires_at) > new Date()) ? 'ACTIVE' : 'EXPIRED'}
                             </Badge>
                           </td>
                           <td className="border border-gray-200 px-3 py-2">
@@ -575,7 +584,7 @@ const AdminDashboard = () => {
                       {visitors.length === 0 && (
                         <tr>
                           <td colSpan="7" className="border border-gray-200 px-4 py-8 text-center text-gray-500">
-                            No active visitor registrations
+                            No visitor registrations found
                           </td>
                         </tr>
                       )}
@@ -630,6 +639,21 @@ const AdminDashboard = () => {
                         onChange={(e) => setEditingVisitor({...editingVisitor, department_visiting: e.target.value})}
                         className="mt-1"
                       />
+                    </div>
+                    <div>
+                      <Label htmlFor="status">Status</Label>
+                      <Select 
+                        value={editingVisitor.is_active !== false ? "active" : "inactive"} 
+                        onValueChange={(val) => setEditingVisitor({...editingVisitor, is_active: val === "active"})}
+                      >
+                        <SelectTrigger className="mt-1">
+                          <SelectValue placeholder="Select Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="active">Active</SelectItem>
+                          <SelectItem value="inactive">Inactive / Expired</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
                     <Button onClick={handleEditVisitorSave} className="w-full bg-green-600 hover:bg-green-700">
                       Save Changes

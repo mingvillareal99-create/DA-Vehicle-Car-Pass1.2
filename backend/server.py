@@ -481,6 +481,11 @@ class VisitorRegistrationRepository(BaseRepository):
         })
         docs = await cursor.to_list(1000)
         return [convert_objectid_to_str(doc) for doc in docs]
+        
+    async def find_all_recent(self, limit: int = 100) -> List[dict]:
+        cursor = self.collection.find({}).sort("created_at", -1).limit(limit)
+        docs = await cursor.to_list(limit)
+        return [convert_objectid_to_str(doc) for doc in docs]
     
     async def find_expired(self) -> List[dict]:
         cursor = self.collection.find({
@@ -650,6 +655,10 @@ class VisitorRegistrationService:
     
     async def get_active_visitors(self) -> List[VisitorRegistration]:
         visitors = await self.visitor_repo.find_all_active()
+        return [VisitorRegistration(**visitor) for visitor in visitors]
+        
+    async def get_all_recent_visitors(self, limit: int = 100) -> List[VisitorRegistration]:
+        visitors = await self.visitor_repo.find_all_recent(limit)
         return [VisitorRegistration(**visitor) for visitor in visitors]
     
     async def get_visitor_by_plate(self, plate_number: str) -> Optional[VisitorRegistration]:
@@ -956,8 +965,8 @@ async def register_visitor(registration_data: VisitorRegistrationCreate, current
     return await visitor_service.register_visitor(registration_data)
 
 @api_router.get("/visitors", response_model=List[VisitorRegistration])
-async def get_active_visitors(current_user: dict = Depends(get_current_user)):
-    return await visitor_service.get_active_visitors()
+async def get_all_visitors(current_user: dict = Depends(get_current_user)):
+    return await visitor_service.get_all_recent_visitors()
 
 @api_router.get("/visitors/{plate_number}", response_model=VisitorRegistration)
 async def get_visitor_by_plate(plate_number: str, current_user: dict = Depends(get_current_user)):
