@@ -5,6 +5,7 @@
  */
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useToast } from '../../hooks/use-toast';
 import { useAuth } from '../../context/AuthContext';
 import { API, DA_LOGO_URL } from '../../services/constants';
 import OfflineStatus from '../common/OfflineStatus';
@@ -57,8 +58,7 @@ const AdminDashboard = () => {
   
   // Visitor Action state
   const [deleteVisitorConfirm, setDeleteVisitorConfirm] = useState(null);
-  const [editingVisitor, setEditingVisitor] = useState(null);
-  const [isEditVisitorModalOpen, setIsEditVisitorModalOpen] = useState(false);
+  const [visitorModalDefaultEdit, setVisitorModalDefaultEdit] = useState(false);
   
   // New vehicle form state
   const [newVehicle, setNewVehicle] = useState({
@@ -80,6 +80,7 @@ const AdminDashboard = () => {
   
   // Auth context
   const { user, isOnline } = useAuth();
+  const { toast } = useToast();
 
   /**
    * Fetch all dashboard data in parallel
@@ -158,7 +159,7 @@ const AdminDashboard = () => {
       fetchDashboardData();
     } catch (error) {
       console.error('Error creating vehicle:', error);
-      alert('Error creating vehicle: ' + (error.response?.data?.detail || 'Unknown error'));
+      toast({ title: 'Error', description: `Error creating vehicle: ${error.response?.data?.detail || 'Unknown error'}`, variant: 'destructive' });
     }
   };
 
@@ -173,10 +174,10 @@ const AdminDashboard = () => {
         fetchDashboardData();
         setDeleteVisitorConfirm(null);
         if (selectedVisitor?.id === docId) setIsVisitorModalOpen(false);
-        alert('Visitor deleted successfully!');
+        toast({ title: 'Notification', description: 'Visitor deleted successfully!' });
       } catch (error) {
         console.error('Error deleting visitor:', error);
-        alert('Error deleting visitor: ' + (error.response?.data?.detail || 'Unknown error'));
+        toast({ title: 'Error', description: `Error deleting visitor: ${error.response?.data?.detail || 'Unknown error'}`, variant: 'destructive' });
       }
     } else {
       setDeleteVisitorConfirm(docId);
@@ -187,9 +188,10 @@ const AdminDashboard = () => {
   /**
    * Handle Visitor Edit Save
    */
-  const handleEditVisitorSave = async () => {
+  const handleEditVisitorSave = async (updatedData) => {
     try {
-      const payload = { ...editingVisitor };
+      if (!updatedData || !updatedData.id) return;
+      const payload = { ...updatedData };
       
       // If setting status to active and it's already physically expired, extend it to end of current day
       if (payload.is_active !== false && new Date(payload.expires_at) <= new Date()) {
@@ -198,14 +200,15 @@ const AdminDashboard = () => {
         payload.expires_at = endOfDay.toISOString();
       }
 
-      await axios.put(`${API}/database/visitor_registrations/${editingVisitor.id}`, payload);
-      setIsEditVisitorModalOpen(false);
-      setEditingVisitor(null);
+      await axios.put(`${API}/database/visitor_registrations/${updatedData.id}`, payload);
+      setIsVisitorModalOpen(false);
+      setSelectedVisitor(null);
+      setVisitorModalDefaultEdit(false);
       fetchDashboardData();
-      alert('Visitor updated successfully!');
+      toast({ title: 'Notification', description: 'Visitor updated successfully!' });
     } catch (error) {
       console.error('Error updating visitor:', error);
-      alert('Error updating visitor: ' + (error.response?.data?.detail || 'Unknown error'));
+      toast({ title: 'Error', description: `Error updating visitor: ${error.response?.data?.detail || 'Unknown error'}`, variant: 'destructive' });
     }
   };
 
@@ -560,8 +563,9 @@ const AdminDashboard = () => {
                                 className="hover:bg-yellow-500 hover:text-white transition-colors"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  setEditingVisitor({...visitor});
-                                  setIsEditVisitorModalOpen(true);
+                                  setSelectedVisitor({...visitor});
+                                  setVisitorModalDefaultEdit(true);
+                                  setIsVisitorModalOpen(true);
                                 }}
                                 title="Edit"
                               >
@@ -602,66 +606,11 @@ const AdminDashboard = () => {
               onClose={() => {
                 setIsVisitorModalOpen(false);
                 setSelectedVisitor(null);
+                setVisitorModalDefaultEdit(false);
               }}
+              onSave={handleEditVisitorSave}
+              defaultEditMode={visitorModalDefaultEdit}
             />
-
-            {/* Edit Visitor Modal */}
-            <Dialog open={isEditVisitorModalOpen} onOpenChange={setIsEditVisitorModalOpen}>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Edit Visitor Registration</DialogTitle>
-                </DialogHeader>
-                {editingVisitor && (
-                  <div className="space-y-4 py-4">
-                    <div>
-                      <Label htmlFor="plate_number">Plate Number</Label>
-                      <Input
-                        id="plate_number"
-                        value={editingVisitor.plate_number}
-                        onChange={(e) => setEditingVisitor({...editingVisitor, plate_number: e.target.value.toUpperCase()})}
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="purpose">Purpose of Visit</Label>
-                      <Input
-                        id="purpose"
-                        value={editingVisitor.purpose_of_visit}
-                        onChange={(e) => setEditingVisitor({...editingVisitor, purpose_of_visit: e.target.value})}
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="visiting">Department Visiting</Label>
-                      <Input
-                        id="visiting"
-                        value={editingVisitor.department_visiting}
-                        onChange={(e) => setEditingVisitor({...editingVisitor, department_visiting: e.target.value})}
-                        className="mt-1"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="status">Status</Label>
-                      <Select 
-                        value={editingVisitor.is_active !== false ? "active" : "inactive"} 
-                        onValueChange={(val) => setEditingVisitor({...editingVisitor, is_active: val === "active"})}
-                      >
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder="Select Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="active">Active</SelectItem>
-                          <SelectItem value="inactive">Inactive / Expired</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <Button onClick={handleEditVisitorSave} className="w-full bg-green-600 hover:bg-green-700">
-                      Save Changes
-                    </Button>
-                  </div>
-                )}
-              </DialogContent>
-            </Dialog>
           </TabsContent>
 
           {/* Manage Vehicles Tab */}

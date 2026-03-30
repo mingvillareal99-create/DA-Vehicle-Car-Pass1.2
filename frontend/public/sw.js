@@ -118,6 +118,21 @@ async function handleApiRequest(request) {
     }
   }
   
+  // For PUT and DELETE requests, bypass cache completely
+  if (request.method !== 'GET') {
+    try {
+      return await fetch(request);
+    } catch (error) {
+      return new Response(JSON.stringify({
+        error: `Offline - Cannot perform ${request.method} action while offline`,
+        offline: true
+      }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  }
+  
   // For GET requests, try network first, then cache
   try {
     const response = await fetch(request);

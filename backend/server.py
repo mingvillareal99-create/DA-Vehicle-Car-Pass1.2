@@ -589,7 +589,14 @@ class VehicleService:
     
     async def get_all_vehicles(self) -> List[Vehicle]:
         vehicles = await self.vehicle_repo.find_all_active()
-        return [Vehicle(**vehicle) for vehicle in vehicles]
+        import logging
+        valid_vehicles = []
+        for v in vehicles:
+            try:
+                valid_vehicles.append(Vehicle(**v))
+            except Exception as e:
+                logging.warning(f"Failed to parse vehicle record {v.get('id')}: {e}")
+        return valid_vehicles
     
     async def get_vehicle_by_plate(self, plate_number: str) -> Optional[Vehicle]:
         vehicle = await self.vehicle_repo.find_by_plate_number(plate_number)
@@ -655,11 +662,25 @@ class VisitorRegistrationService:
     
     async def get_active_visitors(self) -> List[VisitorRegistration]:
         visitors = await self.visitor_repo.find_all_active()
-        return [VisitorRegistration(**visitor) for visitor in visitors]
+        import logging
+        valid_visitors = []
+        for v in visitors:
+            try:
+                valid_visitors.append(VisitorRegistration(**v))
+            except Exception as e:
+                logging.warning(f"Failed to parse active visitor record {v.get('id')}: {e}")
+        return valid_visitors
         
     async def get_all_recent_visitors(self, limit: int = 100) -> List[VisitorRegistration]:
         visitors = await self.visitor_repo.find_all_recent(limit)
-        return [VisitorRegistration(**visitor) for visitor in visitors]
+        import logging
+        valid_visitors = []
+        for v in visitors:
+            try:
+                valid_visitors.append(VisitorRegistration(**v))
+            except Exception as e:
+                logging.warning(f"Failed to parse recent visitor record {v.get('id')}: {e}")
+        return valid_visitors
     
     async def get_visitor_by_plate(self, plate_number: str) -> Optional[VisitorRegistration]:
         visitor = await self.visitor_repo.find_by_plate_number(plate_number)
@@ -842,6 +863,10 @@ class DashboardService:
                     registration_type=registration_type
                 ))
         
+        # Sort consistently by entry time (newest entries at top)
+        # Use fallback of 0 timestamp for None entry_times to prevent exceptions
+        status_list.sort(key=lambda x: x.entry_time.timestamp() if x.entry_time else 0, reverse=True)
+        
         return status_list
     
     async def get_dashboard_stats(self) -> Dict:
@@ -988,7 +1013,14 @@ async def get_entry_exit_logs(
 ):
     log_repo = EntryExitLogRepository()
     logs = await log_repo.find_all(limit, plate_number)
-    return [EntryExitLog(**log) for log in logs]
+    import logging
+    valid_logs = []
+    for log in logs:
+        try:
+            valid_logs.append(EntryExitLog(**log))
+        except Exception as e:
+            logging.warning(f"Failed to parse log record {log.get('id')}: {e}")
+    return valid_logs
 
 # Dashboard routes
 @api_router.get("/vehicle-status")
@@ -1165,10 +1197,14 @@ async def update_document(
         raise HTTPException(status_code=400, detail="Invalid collection name")
     
     collection = db[collection_name]
-    
     # Remove _id from update data if present
     update_data = {k: v for k, v in document_data.items() if k != '_id'}
     
+    # Auto-sync barcode_data for visitors if plate_number is updated
+    if collection_name == 'visitor_registrations' and 'plate_number' in update_data:
+        update_data['plate_number'] = update_data['plate_number'].upper()
+        update_data['barcode_data'] = update_data['plate_number']
+        
     # Update document
     result = await collection.update_one(
         {"id": document_id},
