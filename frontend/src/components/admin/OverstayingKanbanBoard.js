@@ -83,6 +83,14 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
   const [selectedPlate, setSelectedPlate] = useState('');
   const [creatingTicket, setCreatingTicket] = useState(false);
   
+  const sortImportant = (list) => {
+    return [...list].sort((a, b) => {
+      if (a.is_important && !b.is_important) return -1;
+      if (!a.is_important && b.is_important) return 1;
+      return 0;
+    });
+  };
+
   const fetchTickets = async () => {
     try {
       let url = `${API}/tickets`;
@@ -93,9 +101,9 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
       const data = res.data;
       
       setTickets({
-        overstaying: data.filter(t => t.status === 'overstaying'),
-        on_travel: data.filter(t => t.status === 'on_travel'),
-        under_investigation: data.filter(t => t.status === 'under_investigation'),
+        overstaying: sortImportant(data.filter(t => t.status === 'overstaying')),
+        on_travel: sortImportant(data.filter(t => t.status === 'on_travel')),
+        under_investigation: sortImportant(data.filter(t => t.status === 'under_investigation')),
         resolved: data.filter(t => t.status === 'resolved'),
       });
     } catch (err) {
@@ -149,6 +157,32 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
     } catch (err) {
       fetchTickets(); // revert on failure
       toast({ title: 'Error', variant: 'destructive', description: "Failed to update status." });
+    }
+  };
+
+  const handleToggleImportant = async (ticket) => {
+    const sourceCol = ticket.status;
+    const updatedTicket = { ...ticket, is_important: !ticket.is_important };
+    
+    // Optimistic UI, immediately sort to top if pinned
+    const currentList = tickets[sourceCol].filter(t => t.id !== ticket.id);
+    let newList = [updatedTicket, ...currentList];
+    if (!updatedTicket.is_important) {
+      // Re-sort correctly if unpinned
+      newList = sortImportant(newList);
+    }
+    
+    setTickets({
+      ...tickets,
+      [sourceCol]: newList
+    });
+    
+    try {
+      await axios.patch(`${API}/tickets/${ticket.id}/important`, { is_important: updatedTicket.is_important });
+      toast({ title: updatedTicket.is_important ? "Priority Pinned" : "Priority Unpinned", description: `${ticket.plate_number} priority updated.` });
+    } catch (err) {
+      fetchTickets();
+      toast({ title: "Error", variant: "destructive", description: "Failed to update priority" });
     }
   };
 
@@ -343,7 +377,7 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
                   <span className="flex items-center"><AlertTriangle className="w-4 h-4 text-red-500 mr-2"/> Overstaying</span>
                   <Badge variant="secondary" className="bg-gray-200">{tickets.overstaying.length}</Badge>
                 </h3>
-                {tickets.overstaying.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} />)}
+                {tickets.overstaying.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} onToggleImportant={handleToggleImportant} onQuickResolve={(ticket) => setPendingResolution({ ticket, originalSource: 'overstaying' })} />)}
                 {provided.placeholder}
                 
                 <Button 
@@ -371,7 +405,7 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
                   <span>Under Investigation</span>
                   <Badge variant="secondary" className="bg-gray-200">{tickets.under_investigation.length}</Badge>
                 </h3>
-                {tickets.under_investigation.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} />)}
+                {tickets.under_investigation.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} onToggleImportant={handleToggleImportant} onQuickResolve={(ticket) => setPendingResolution({ ticket, originalSource: 'under_investigation' })} />)}
                 {provided.placeholder}
               </div>
             )}
@@ -389,7 +423,7 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
                   <span>Resolved</span>
                   <Badge variant="secondary" className="bg-gray-200">{tickets.resolved.length}</Badge>
                 </h3>
-                {tickets.resolved.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} />)}
+                {tickets.resolved.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} onToggleImportant={handleToggleImportant} />)}
                 {provided.placeholder}
               </div>
             )}
@@ -407,7 +441,7 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
                   <span className="flex items-center"><Plane className="w-4 h-4 text-blue-500 mr-2"/> On Travel</span>
                   <Badge variant="secondary" className="bg-gray-200">{tickets.on_travel.length}</Badge>
                 </h3>
-                {tickets.on_travel.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} />)}
+                {tickets.on_travel.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} onToggleImportant={handleToggleImportant} onQuickResolve={(ticket) => setPendingResolution({ ticket, originalSource: 'on_travel' })} />)}
                 {provided.placeholder}
               </div>
             )}

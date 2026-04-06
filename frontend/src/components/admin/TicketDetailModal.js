@@ -2,9 +2,9 @@ import React from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../ui/dialog";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { Clock, User, Car, Plane } from "lucide-react";
+import { Clock, User, Car, Plane, Star, Check } from "lucide-react";
 
-const TicketDetailModal = ({ isOpen, onClose, ticket }) => {
+const TicketDetailModal = ({ isOpen, onClose, ticket, onToggleImportant, onQuickResolve }) => {
   if (!ticket) return null;
 
   const entryTime = new Date(ticket.entry_time);
@@ -148,7 +148,28 @@ const TicketDetailModal = ({ isOpen, onClose, ticket }) => {
           </div>
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex flex-col sm:flex-row justify-between items-center sm:space-x-2 w-full mt-4 gap-2 sm:gap-0">
+          <div className="flex space-x-2 w-full sm:w-auto">
+            {onToggleImportant && (
+               <Button 
+                  variant={ticket.is_important ? "secondary" : "outline"}
+                  onClick={() => onToggleImportant(ticket)} 
+                  className={`flex-1 sm:flex-none ${ticket.is_important ? "bg-red-50 text-red-600 hover:bg-red-100" : ""}`}
+               >
+                 <Star className={`w-4 h-4 mr-2 ${ticket.is_important ? 'fill-current' : ''}`} />
+                 {ticket.is_important ? "Unpin" : "Pin"}
+               </Button>
+            )}
+            {ticket.status !== 'resolved' && onQuickResolve && (
+               <Button 
+                  variant="outline"
+                  onClick={() => { onQuickResolve(ticket); onClose(); }} 
+                  className="flex-1 sm:flex-none text-green-600 hover:bg-green-50 border-green-200"
+               >
+                 <Check className="w-4 h-4 mr-2" /> Resolve
+               </Button>
+            )}
+          </div>
           <Button onClick={onClose} variant="outline" className="w-full sm:w-auto">Close</Button>
         </DialogFooter>
       </DialogContent>

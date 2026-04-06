@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { Draggable } from '@hello-pangea/dnd';
 import { Card, CardContent } from "../ui/card";
 import { Badge } from "../ui/badge";
-import { Clock, User, Car } from "lucide-react";
+import { Clock, User, Car, Star, Check } from "lucide-react";
 import TicketDetailModal from './TicketDetailModal';
 
-const TicketCard = ({ item, index, isDimmed }) => {
+const TicketCard = ({ item, index, isDimmed, onToggleImportant, onQuickResolve }) => {
   const [modalOpen, setModalOpen] = useState(false);
   
   // Calculate duration
@@ -24,7 +24,8 @@ const TicketCard = ({ item, index, isDimmed }) => {
         >
           <Card 
             onClick={() => setModalOpen(true)}
-            className={`border shadow-sm hover:shadow-md hover:ring-2 ring-black/5 transition-all cursor-pointer ${
+            className={`relative group border shadow-sm hover:shadow-md hover:ring-2 ring-black/5 transition-all cursor-pointer overflow-hidden ${
+            item.is_important ? 'border-red-500 border-2 shadow-red-200/50 shadow-lg animate-pulse ring-red-100 bg-red-50' : 
             item.status === 'overstaying' ? 'border-red-200 bg-red-50/50' : 
             item.status === 'on_travel' ? 'border-blue-200 bg-blue-50/50' :
             item.status === 'under_investigation' ? 'border-yellow-200 bg-yellow-50/50' : 
@@ -76,6 +77,8 @@ const TicketCard = ({ item, index, isDimmed }) => {
             isOpen={modalOpen} 
             onClose={() => setModalOpen(false)} 
             ticket={item} 
+            onToggleImportant={onToggleImportant}
+            onQuickResolve={onQuickResolve}
           />
         </div>
       )}

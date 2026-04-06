@@ -248,6 +248,7 @@ class OverstayingTicket(BaseEntity):
     travel_location: Optional[str] = None
     travel_end_date: Optional[datetime] = None
     cause_of_overstaying: Optional[str] = None
+    is_important: bool = False
 
 class TicketCreate(BaseModel):
     plate_number: str
@@ -267,6 +268,9 @@ class TicketUpdate(BaseModel):
     travel_location: Optional[str] = None
     travel_end_date: Optional[datetime] = None
     cause_of_overstaying: Optional[str] = None
+
+class TicketImportantUpdate(BaseModel):
+    is_important: bool
 
 # Service Classes (Business Logic Layer)
 class PasswordService:
@@ -1488,6 +1492,20 @@ async def update_ticket_status(ticket_id: str, update_data: TicketUpdate):
         raise HTTPException(status_code=404, detail="Ticket not found")
         
     return {"success": True, "message": "Ticket status updated"}
+
+@api_router.patch("/tickets/{ticket_id}/important")
+async def update_ticket_important(ticket_id: str, update_data: TicketImportantUpdate):
+    ticket_repo = TicketRepository()
+    update_dict = {
+        "is_important": update_data.is_important,
+        "updated_at": DateTimeService.now_pht()
+    }
+    
+    success = await ticket_repo.update(ticket_id, update_dict)
+    if not success:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+        
+    return {"success": True, "message": "Ticket priority updated"}
 
 app.include_router(api_router)
 
