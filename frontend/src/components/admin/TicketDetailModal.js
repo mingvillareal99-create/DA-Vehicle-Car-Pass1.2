@@ -1,19 +1,42 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "../ui/dialog";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
-import { Clock, User, Car, Plane, Star, Check } from "lucide-react";
+import { Textarea } from "../ui/textarea";
+import { Clock, User, Car, Plane, Star, Check, MessageSquare, Send } from "lucide-react";
+import axios from "axios";
+import { API } from "../../services/constants";
 
-const TicketDetailModal = ({ isOpen, onClose, ticket, onToggleImportant, onQuickResolve }) => {
+const TicketDetailModal = ({ isOpen, onClose, ticket, onToggleImportant, onUpdateTicket, onQuickResolve }) => {
+  const [newNote, setNewNote] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   if (!ticket) return null;
 
   const entryTime = new Date(ticket.entry_time);
   const now = ticket.resolved_at ? new Date(ticket.resolved_at) : new Date();
   const diffHours = (now - entryTime) / (1000 * 60 * 60);
 
+  const handleAddNote = async () => {
+    if (!newNote.trim()) return;
+    setIsSubmitting(true);
+    try {
+      const res = await axios.post(`${API}/tickets/${ticket.id}/notes`, { text: newNote });
+      setNewNote('');
+      if (onUpdateTicket) {
+        const updatedTicket = { ...ticket, notes: [...(ticket.notes || []), res.data.note] };
+        onUpdateTicket(updatedTicket);
+      }
+    } catch (err) {
+      console.error('Failed to add note', err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex justify-between items-center pr-6">
             <span className="flex items-center space-x-3">
@@ -145,8 +168,56 @@ const TicketDetailModal = ({ isOpen, onClose, ticket, onToggleImportant, onQuick
                   </div>
                 </div>
               </div>
-          </div>
-        </div>
+            </div>
+
+            {/* Case Notes Timeline */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+               <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
+                 <MessageSquare className="w-4 h-4 mr-2" /> Case Notes & Activity
+               </h4>
+               
+               <div className="space-y-3 mb-4 max-h-[250px] overflow-y-auto pr-2">
+                 {ticket.notes && ticket.notes.length > 0 ? (
+                   ticket.notes.map((note, index) => (
+                     <div key={note.id || index} className="bg-gray-50 border rounded-lg p-3 relative">
+                       <div className="flex justify-between items-start mb-1">
+                         <span className="font-semibold text-xs text-gray-700">{note.author}</span>
+                         <span className="text-[10px] text-gray-400 font-mono">{new Date(note.timestamp).toLocaleString()}</span>
+                       </div>
+                       <p className="text-sm text-gray-600 break-words">{note.text}</p>
+                     </div>
+                   ))
+                 ) : (
+                   <div className="text-center py-6 text-gray-400 text-sm border border-dashed rounded-lg">
+                     No notes logged yet.
+                   </div>
+                 )}
+               </div>
+               
+               {ticket.status !== 'resolved' && (
+                 <div className="flex gap-2 items-end bg-white border border-gray-200 focus-within:border-blue-500 focus-within:ring-1 focus-within:ring-blue-500/50 rounded-2xl p-1 shadow-sm transition-all duration-200">
+                   <Textarea 
+                     value={newNote}
+                     onChange={(e) => setNewNote(e.target.value)}
+                     placeholder="Add a case note (e.g., Called owner...)"
+                     className="text-sm border-0 focus-visible:ring-0 resize-none min-h-[40px] px-3 py-2.5 bg-transparent w-full shadow-none"
+                     rows={1}
+                   />
+                   <Button 
+                     onClick={handleAddNote} 
+                     disabled={isSubmitting || !newNote.trim()}
+                     className="h-9 w-9 rounded-xl p-0 bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all duration-200 group flex-shrink-0 disabled:bg-gray-200 disabled:text-gray-400 mb-0.5 mr-0.5"
+                   >
+                     {isSubmitting ? (
+                        <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                     ) : (
+                        <Send className="w-4 h-4 ml-0.5 group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform duration-300" />
+                     )}
+                   </Button>
+                 </div>
+               )}
+            </div>
+           </div>
 
         <DialogFooter className="flex flex-col sm:flex-row justify-between items-center sm:space-x-2 w-full mt-4 gap-2 sm:gap-0">
           <div className="flex space-x-2 w-full sm:w-auto">

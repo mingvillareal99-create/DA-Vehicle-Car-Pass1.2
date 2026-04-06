@@ -14,7 +14,7 @@ import base64
 import uuid
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 from enum import Enum
 from abc import ABC, abstractmethod
@@ -248,8 +248,15 @@ class OverstayingTicket(BaseEntity):
     travel_location: Optional[str] = None
     travel_end_date: Optional[datetime] = None
     cause_of_overstaying: Optional[str] = None
+    notes: List[Dict[str, Any]] = []
     is_important: bool = False
 
+class TicketNote(BaseModel):
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    text: str
+    author: str
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(PHT_TZ))
+    
 class TicketCreate(BaseModel):
     plate_number: str
     vehicle_type: str
@@ -1506,6 +1513,34 @@ async def update_ticket_important(ticket_id: str, update_data: TicketImportantUp
         raise HTTPException(status_code=404, detail="Ticket not found")
         
     return {"success": True, "message": "Ticket priority updated"}
+
+class TicketNoteRequest(BaseModel):
+    text: str
+
+@api_router.post("/tickets/{ticket_id}/notes")
+async def add_ticket_note(ticket_id: str, request: TicketNoteRequest, current_user: dict = Depends(get_current_user)):
+    ticket_repo = TicketRepository()
+    ticket = await ticket_repo.find_by_id(ticket_id)
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+        
+    new_note = TicketNote(
+        text=request.text,
+        author=current_user.get("username", "Unknown")
+    )
+    
+    current_notes = ticket.get("notes", [])
+    current_notes.append(new_note.dict())
+    
+    success = await ticket_repo.update(ticket_id, {
+        "notes": current_notes,
+        "updated_at": DateTimeService.now_pht()
+    })
+    
+    if not success:
+        raise HTTPException(status_code=500, detail="Failed to add note")
+        
+    return {"success": True, "note": new_note.dict()}
 
 app.include_router(api_router)
 

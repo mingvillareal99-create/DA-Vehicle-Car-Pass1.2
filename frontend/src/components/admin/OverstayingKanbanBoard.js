@@ -186,6 +186,12 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
     }
   };
 
+  const handleUpdateTicket = (updatedTicket) => {
+    const sourceCol = updatedTicket.status;
+    const newList = tickets[sourceCol].map(t => t.id === updatedTicket.id ? updatedTicket : t);
+    setTickets({ ...tickets, [sourceCol]: sortImportant(newList) });
+  };
+
   const handleResolutionSave = async (note) => {
     if (!pendingResolution) return;
     
@@ -377,7 +383,7 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
                   <span className="flex items-center"><AlertTriangle className="w-4 h-4 text-red-500 mr-2"/> Overstaying</span>
                   <Badge variant="secondary" className="bg-gray-200">{tickets.overstaying.length}</Badge>
                 </h3>
-                {tickets.overstaying.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} onToggleImportant={handleToggleImportant} onQuickResolve={(ticket) => setPendingResolution({ ticket, originalSource: 'overstaying' })} />)}
+                {tickets.overstaying.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} onToggleImportant={handleToggleImportant} onUpdateTicket={handleUpdateTicket} onQuickResolve={(ticket) => setPendingResolution({ ticket, originalSource: 'overstaying' })} />)}
                 {provided.placeholder}
                 
                 <Button 
@@ -405,7 +411,7 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
                   <span>Under Investigation</span>
                   <Badge variant="secondary" className="bg-gray-200">{tickets.under_investigation.length}</Badge>
                 </h3>
-                {tickets.under_investigation.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} onToggleImportant={handleToggleImportant} onQuickResolve={(ticket) => setPendingResolution({ ticket, originalSource: 'under_investigation' })} />)}
+                {tickets.under_investigation.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} onToggleImportant={handleToggleImportant} onUpdateTicket={handleUpdateTicket} onQuickResolve={(ticket) => setPendingResolution({ ticket, originalSource: 'under_investigation' })} />)}
                 {provided.placeholder}
               </div>
             )}
@@ -423,7 +429,7 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
                   <span>Resolved</span>
                   <Badge variant="secondary" className="bg-gray-200">{tickets.resolved.length}</Badge>
                 </h3>
-                {tickets.resolved.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} onToggleImportant={handleToggleImportant} />)}
+                {tickets.resolved.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} onUpdateTicket={handleUpdateTicket} onToggleImportant={handleToggleImportant} />)}
                 {provided.placeholder}
               </div>
             )}
@@ -441,7 +447,7 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
                   <span className="flex items-center"><Plane className="w-4 h-4 text-blue-500 mr-2"/> On Travel</span>
                   <Badge variant="secondary" className="bg-gray-200">{tickets.on_travel.length}</Badge>
                 </h3>
-                {tickets.on_travel.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} onToggleImportant={handleToggleImportant} onQuickResolve={(ticket) => setPendingResolution({ ticket, originalSource: 'on_travel' })} />)}
+                {tickets.on_travel.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} onToggleImportant={handleToggleImportant} onUpdateTicket={handleUpdateTicket} onQuickResolve={(ticket) => setPendingResolution({ ticket, originalSource: 'on_travel' })} />)}
                 {provided.placeholder}
               </div>
             )}

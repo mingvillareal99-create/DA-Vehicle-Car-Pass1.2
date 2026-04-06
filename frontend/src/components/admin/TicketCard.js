@@ -5,7 +5,7 @@ import { Badge } from "../ui/badge";
 import { Clock, User, Car, Star, Check } from "lucide-react";
 import TicketDetailModal from './TicketDetailModal';
 
-const TicketCard = ({ item, index, isDimmed, onToggleImportant, onQuickResolve }) => {
+const TicketCard = ({ item, index, isDimmed, onToggleImportant, onUpdateTicket, onQuickResolve }) => {
   const [modalOpen, setModalOpen] = useState(false);
   
   // Calculate duration
@@ -79,6 +79,7 @@ const TicketCard = ({ item, index, isDimmed, onToggleImportant, onQuickResolve }
             ticket={item} 
             onToggleImportant={onToggleImportant}
             onQuickResolve={onQuickResolve}
+            onUpdateTicket={onUpdateTicket}
           />
         </div>
       )}
