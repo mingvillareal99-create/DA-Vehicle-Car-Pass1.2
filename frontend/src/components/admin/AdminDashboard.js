@@ -40,10 +40,18 @@ import {
   BarChart2,
   Edit,
   Trash2,
-  Bell
+  Bell,
+  Menu,
+  X,
+  Database,
+  LayoutDashboard
 } from "lucide-react";
 
 const AdminDashboard = () => {
+  // Navigation state
+  const [activeTab, setActiveTab] = useState("status");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
   // Dashboard data state
   const [stats, setStats] = useState({});
   const [vehicles, setVehicles] = useState([]);
@@ -214,31 +222,113 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 to-emerald-50 p-4">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-screen overflow-hidden bg-gradient-to-br from-green-50 to-emerald-50">
       <OfflineStatus isOnline={isOnline} />
       
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center space-x-4">
+      {/* Mobile Sidebar Overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 md:hidden transition-opacity duration-300"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <div 
+        className={`fixed md:static inset-y-0 left-0 z-50 flex flex-col bg-white border-r border-green-100 transition-all duration-300 transform 
+          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} 
+          w-64 md:w-20 md:hover:w-64 group shadow-xl md:shadow-none`}
+      >
+        {/* Sidebar Header */}
+        <div className="flex items-center justify-between h-16 px-4 py-4 border-b border-gray-100">
+          <div className="flex items-center overflow-hidden">
             <img 
               src={DA_LOGO_URL} 
               alt="DA Logo"
-              className="w-12 h-12 object-contain"
+              className="w-10 h-10 object-contain min-w-[40px]"
               onError={(e) => {
                 e.target.style.display = 'none';
                 e.target.nextSibling.style.display = 'flex';
               }}
             />
-            <div className="w-12 h-12 bg-green-600 rounded-full hidden items-center justify-center">
-              <Building className="w-6 h-6 text-white" />
+            <div className="w-10 h-10 bg-green-600 rounded-full hidden items-center justify-center min-w-[40px]">
+              <Building className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-              <p className="text-gray-600">Department of Agriculture Region V - Vehicle Monitoring</p>
-              <p className="text-sm text-gray-500">Welcome, {user?.username}</p>
-            </div>
+            <span className="ml-3 font-bold text-green-800 whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75">
+              DA Region V
+            </span>
           </div>
+          <Button variant="ghost" size="icon" className="md:hidden min-w-[40px]" onClick={() => setIsMobileMenuOpen(false)}>
+            <X className="w-5 h-5 text-gray-500" />
+          </Button>
+        </div>
+
+        {/* Navigation Items */}
+        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+          {[
+            { id: 'status', label: 'Vehicle Status', icon: LayoutDashboard },
+            { id: 'overstaying', label: 'Overstaying', icon: AlertTriangle, color: 'text-red-500 hover:text-red-600', activeClass: 'bg-red-50 text-red-700 font-semibold' },
+            { id: 'visitors', label: 'Visitors', icon: Users },
+            { id: 'vehicles', label: 'Manage Vehicles', icon: Car },
+            { id: 'mobile', label: 'Mobile Tools', icon: Smartphone },
+            { id: 'analytics', label: 'Analytics', icon: BarChart2, color: 'text-green-600' },
+            { id: 'database', label: 'Database', icon: Database }
+          ].map((item) => (
+            <button
+              key={item.id}
+              onClick={() => {
+                setActiveTab(item.id);
+                setIsMobileMenuOpen(false);
+              }}
+              className={`w-full flex items-center px-3 py-3 rounded-lg transition-colors overflow-hidden
+                ${activeTab === item.id 
+                  ? (item.activeClass || 'bg-green-100 text-green-800 font-semibold') 
+                  : `hover:bg-gray-100 text-gray-600 ${item.color || ''}`
+                }`}
+            >
+              <item.icon className={`w-6 h-6 min-w-[24px] ${activeTab === item.id ? (item.id === 'overstaying' ? 'text-red-600' : 'text-green-700') : ''}`} />
+              <span className="ml-4 whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75">
+                {item.label}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        {/* Admin Profile & Logout */}
+        <div className="p-4 border-t border-gray-100">
+          <div className="flex flex-col space-y-4">
+             <div className="flex items-center overflow-hidden px-1">
+               <div className="w-10 h-10 min-w-[40px] bg-green-200 rounded-full flex items-center justify-center font-bold text-green-800 text-lg shadow-sm">
+                 {user?.username?.charAt(0)?.toUpperCase()}
+               </div>
+               <div className="ml-3 whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75 flex flex-col justify-center">
+                 <p className="text-sm font-bold text-gray-800 truncate leading-tight w-36">{user?.username}</p>
+                 <span className="text-xs text-gray-500 font-medium">Administrator</span>
+               </div>
+             </div>
+             
+             <Button variant="outline" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 overflow-hidden px-3 h-10" onClick={() => window.location.href='/login'}>
+               <LogOut className="w-5 h-5 min-w-[20px]" />
+               <span className="ml-3 whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75 font-semibold">Log out</span>
+             </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto w-full pb-10">
+        <div className="p-4 md:p-8 max-w-7xl mx-auto w-full">
+          {/* Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-3">
+              <Button variant="outline" size="icon" className="md:hidden bg-white" onClick={() => setIsMobileMenuOpen(true)}>
+                <Menu className="w-5 h-5 text-gray-700" />
+              </Button>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+                <p className="text-sm text-gray-500 hidden sm:block">Department of Agriculture Region V - Vehicle Monitoring</p>
+              </div>
+            </div>
           <div className="flex items-center space-x-2">
             <Dialog>
               <DialogTrigger asChild>
@@ -362,18 +452,7 @@ const AdminDashboard = () => {
           </Card>
         </div>
 
-        {/* Main Tabs */}
-        <Tabs defaultValue="status" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
-            <TabsTrigger value="status" data-testid="tab-status">Vehicle Status</TabsTrigger>
-            <TabsTrigger value="overstaying" data-testid="tab-overstaying" className="text-red-700 font-medium flex items-center"><AlertTriangle className="w-4 h-4 mr-1" /> Overstaying</TabsTrigger>
-            <TabsTrigger value="visitors" data-testid="tab-visitors">Visitors</TabsTrigger>
-            <TabsTrigger value="vehicles" data-testid="tab-vehicles">Manage Vehicles</TabsTrigger>
-            <TabsTrigger value="mobile" data-testid="tab-mobile">Mobile Tools</TabsTrigger>
-            <TabsTrigger value="analytics" data-testid="tab-analytics" className="text-green-700 font-medium">Analytics</TabsTrigger>
-            <TabsTrigger value="database" data-testid="tab-database">Database</TabsTrigger>
-          </TabsList>
-
+        <div className="space-y-6">
           {/* Vehicle Status Tab */}
           <TabsContent value="status">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -918,9 +997,10 @@ const AdminDashboard = () => {
           <TabsContent value="database">
             <DatabaseViewer />
           </TabsContent>
-        </Tabs>
+        </div>
       </div>
     </div>
+    </Tabs>
   );
 };
 
