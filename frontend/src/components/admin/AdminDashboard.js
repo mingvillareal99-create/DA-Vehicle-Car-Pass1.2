@@ -12,6 +12,7 @@ import OfflineStatus from '../common/OfflineStatus';
 import VisitorDetailModal from '../common/VisitorDetailModal';
 import DatabaseViewer from './DatabaseViewer';
 import AnalyticsTab from './AnalyticsTab';
+import OverstayingKanbanBoard from './OverstayingKanbanBoard';
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -465,50 +466,7 @@ const AdminDashboard = () => {
 
           {/* Overstaying Tab */}
           <TabsContent value="overstaying">
-            <Card className="border-red-200">
-              <CardHeader>
-                <CardTitle className="text-red-700 flex items-center">
-                  <AlertTriangle className="w-5 h-5 mr-2" />
-                  Overstaying Vehicles Monitoring
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {vehicleStatus.filter(s => s.is_overstaying).map((status) => (
-                    <div 
-                      key={status.plate_number} 
-                      className="flex items-center justify-between p-4 border rounded-lg bg-red-50 border-red-200"
-                    >
-                      <div className="flex items-center space-x-4">
-                        <Badge variant="destructive">
-                          {status.plate_number}
-                        </Badge>
-                        {status.registration_type === 'visitor' && (
-                          <Badge variant="outline" className="text-blue-600 border-blue-200">VISITOR</Badge>
-                        )}
-                        <div>
-                          <p className="font-medium text-red-900">Inside since: {new Date(status.entry_time).toLocaleString()}</p>
-                          <p className="text-sm text-red-700 font-medium">
-                            Duration: {status.duration_hours ? `${status.duration_hours.toFixed(1)} hours` : 'Unknown'}
-                          </p>
-                        </div>
-                      </div>
-                      <Badge variant="destructive" className="animate-pulse shadow-sm">
-                        <AlertTriangle className="w-3 h-3 mr-1" />
-                        ACTION REQUIRED
-                      </Badge>
-                    </div>
-                  ))}
-                  {vehicleStatus.filter(s => s.is_overstaying).length === 0 && (
-                    <div className="text-center py-10 bg-green-50 rounded-lg border border-green-100">
-                      <Shield className="w-12 h-12 text-green-400 mx-auto mb-3" />
-                      <p className="text-green-800 font-medium">All clear!</p>
-                      <p className="text-sm text-green-600">No vehicles are currently overstaying.</p>
-                    </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
+            <OverstayingKanbanBoard vehicleStatus={vehicleStatus} />
           </TabsContent>
 
           {/* Visitors Tab */}

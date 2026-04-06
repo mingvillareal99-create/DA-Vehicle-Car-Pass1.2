@@ -108,6 +108,12 @@ class Gender(str, Enum):
     MALE = "male"
     FEMALE = "female"
 
+class TicketStatus(str, Enum):
+    OVERSTAYING = "overstaying"
+    UNDER_INVESTIGATION = "under_investigation"
+    ON_TRAVEL = "on_travel"
+    RESOLVED = "resolved"
+
 # Base Model Classes
 class BaseEntity(BaseModel):
     """Base entity with common fields"""
@@ -223,6 +229,44 @@ class Notification(BaseEntity):
     message: str
     is_read: bool = False
     reference_id: Optional[str] = None
+
+class OverstayingTicket(BaseEntity):
+    plate_number: str
+    vehicle_type: str
+    purpose_of_visit: Optional[str] = None
+    owner_name: str
+    license_number: Optional[str] = None
+    gender: Optional[str] = None
+    address: Optional[str] = None
+    entry_time: datetime
+    status: TicketStatus = TicketStatus.OVERSTAYING
+    resolution_note: Optional[str] = None
+    resolved_by: Optional[str] = None
+    resolved_at: Optional[datetime] = None
+    ticket_number: Optional[str] = None
+    travel_order_number: Optional[str] = None
+    travel_location: Optional[str] = None
+    travel_end_date: Optional[datetime] = None
+    cause_of_overstaying: Optional[str] = None
+
+class TicketCreate(BaseModel):
+    plate_number: str
+    vehicle_type: str
+    owner_name: str
+    entry_time: datetime
+    purpose_of_visit: Optional[str] = None
+    license_number: Optional[str] = None
+    gender: Optional[str] = None
+    address: Optional[str] = None
+
+class TicketUpdate(BaseModel):
+    status: TicketStatus
+    resolution_note: Optional[str] = None
+    resolved_by: Optional[str] = None
+    travel_order_number: Optional[str] = None
+    travel_location: Optional[str] = None
+    travel_end_date: Optional[datetime] = None
+    cause_of_overstaying: Optional[str] = None
 
 # Service Classes (Business Logic Layer)
 class PasswordService:
@@ -531,6 +575,54 @@ class EntryExitLogRepository(BaseRepository):
         return await self.collection.count_documents({
             "timestamp": {"$gte": today, "$lt": tomorrow}
         })
+
+class TicketRepository(BaseRepository):
+    """Overstaying ticket data access layer"""
+    
+    def __init__(self):
+        super().__init__("overstaying_tickets")
+    
+    async def create(self, data: dict) -> dict:
+        if "ticket_number" not in data or not data["ticket_number"]:
+            count = await self.collection.count_documents({})
+            data["ticket_number"] = f"OVR-{count:05d}"
+            
+        result = await self.collection.insert_one(data)
+        return {"id": str(result.inserted_id), **data}
+    
+    async def find_by_id(self, entity_id: str) -> Optional[dict]:
+        doc = await self.collection.find_one({"id": entity_id})
+        return convert_objectid_to_str(doc)
+        
+    async def update(self, entity_id: str, data: dict) -> bool:
+        result = await self.collection.update_one(
+            {"id": entity_id}, {"$set": data}
+        )
+        return result.modified_count > 0
+        
+    async def find_all(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[dict]:
+        query = {}
+        if start_date and end_date:
+            query["created_at"] = {"$gte": start_date, "$lte": end_date}
+        else:
+            # By default, exclude resolved tickets older than 1 day
+            yesterday = DateTimeService.now_pht() - timedelta(days=1)
+            query = {
+                "$or": [
+                    {"status": {"$ne": TicketStatus.RESOLVED.value}},
+                    {"$and": [{"status": TicketStatus.RESOLVED.value}, {"resolved_at": {"$gt": yesterday}}]}
+                ]
+            }
+        cursor = self.collection.find(query).sort("created_at", -1)
+        docs = await cursor.to_list(1000)
+        return [convert_objectid_to_str(doc) for doc in docs]
+        
+    async def find_active_ticket(self, plate_number: str) -> Optional[dict]:
+        doc = await self.collection.find_one({
+            "plate_number": plate_number,
+            "status": {"$ne": TicketStatus.RESOLVED.value}
+        })
+        return convert_objectid_to_str(doc)
 
 # Service Classes (Business Logic)
 class AuthService:
@@ -1294,6 +1386,109 @@ async def mark_notification_read(notification_id: str, current_user: dict = Depe
     await db.notifications.update_one({"id": notification_id}, {"$set": {"is_read": True}})
     return {"success": True}
 
+@api_router.get("/tickets")
+async def get_tickets(start_date: Optional[str] = None, end_date: Optional[str] = None):
+    ticket_repo = TicketRepository()
+    start = None
+    end = None
+    if start_date and end_date:
+        try:
+            start = datetime.fromisoformat(start_date.replace('Z', '+00:00'))
+            end = datetime.fromisoformat(end_date.replace('Z', '+00:00'))
+            start = DateTimeService.ensure_timezone_aware(start)
+            end = DateTimeService.ensure_timezone_aware(end)
+        except Exception:
+            pass
+    tickets = await ticket_repo.find_all(start, end)
+    return tickets
+
+class ManualTicketCreate(BaseModel):
+    plate_number: str
+
+@api_router.post("/tickets")
+async def create_ticket(ticket_req: ManualTicketCreate):
+    ticket_repo = TicketRepository()
+    vehicle_repo = VehicleRepository()
+    visitor_repo = VisitorRegistrationRepository()
+    log_repo = EntryExitLogRepository()
+    
+    plate = ticket_req.plate_number
+    
+    # Needs entry_time, fetch latest entry log
+    latest_log = await log_repo.find_latest_by_plate(plate)
+    if not latest_log or not latest_log.get('entry_time'):
+        raise HTTPException(status_code=400, detail="Vehicle is not currently logged inside.")
+        
+    entry_time = latest_log.get('entry_time')
+    if isinstance(entry_time, str):
+        entry_time = datetime.fromisoformat(entry_time.replace('Z', '+00:00'))
+    
+    # If already has active ticket
+    if await ticket_repo.find_active_ticket(plate):
+         raise HTTPException(status_code=400, detail="Active ticket already exists")
+    
+    v_info = await visitor_repo.find_by_plate_number(plate)
+    p_info = await vehicle_repo.find_by_plate_number(plate)
+    
+    vehicle_type = "Unknown"
+    owner_name = "Unknown"
+    purpose = None
+    license_num = None
+    gender = None
+    address = None
+    
+    if v_info:
+        vehicle_type = v_info.get("vehicle_type", "private")
+        dl = v_info.get("driver_license", {})
+        owner_name = f"{dl.get('first_name','')} {dl.get('last_name','')}".strip()
+        purpose = v_info.get("purpose_of_visit")
+        license_num = dl.get("license_number")
+        gender = dl.get("gender")
+        address = dl.get("address")
+    elif p_info:
+        vehicle_type = p_info.get("vehicle_type", "da_government")
+        owner_name = p_info.get("owner_name", "Unknown")
+        
+    new_ticket = OverstayingTicket(
+        plate_number=plate,
+        vehicle_type=vehicle_type,
+        owner_name=owner_name,
+        purpose_of_visit=purpose,
+        license_number=license_num,
+        gender=gender,
+        address=address,
+        entry_time=entry_time
+    )
+    return await ticket_repo.create(new_ticket.dict())
+
+@api_router.put("/tickets/{ticket_id}/status")
+async def update_ticket_status(ticket_id: str, update_data: TicketUpdate):
+    ticket_repo = TicketRepository()
+    
+    update_dict = {
+        "status": update_data.status.value,
+        "updated_at": DateTimeService.now_pht()
+    }
+    
+    if update_data.status == TicketStatus.RESOLVED:
+        update_dict["resolved_at"] = DateTimeService.now_pht()
+        update_dict["resolution_note"] = update_data.resolution_note
+        update_dict["resolved_by"] = update_data.resolved_by
+        
+    if update_data.status == TicketStatus.ON_TRAVEL:
+        update_dict["travel_order_number"] = update_data.travel_order_number
+        update_dict["travel_location"] = update_data.travel_location
+        update_dict["travel_end_date"] = update_data.travel_end_date
+        
+    if update_data.cause_of_overstaying:
+        update_dict["cause_of_overstaying"] = update_data.cause_of_overstaying
+        
+    success = await ticket_repo.update(ticket_id, update_dict)
+    if not success:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+        
+    return {"success": True, "message": "Ticket status updated"}
+
 app.include_router(api_router)
 
 # Serve uploaded files
@@ -1325,10 +1520,79 @@ async def monitor_overstaying():
     while True:
         try:
             dashboard_service = DashboardService()
+            ticket_repo = TicketRepository()
+            vehicle_repo = VehicleRepository()
+            visitor_repo = VisitorRegistrationRepository()
+            
             status_list = await dashboard_service.get_vehicle_status()
+            now = datetime.now(PHT_TZ)
+            
+            # First, check for any expired 'on_travel' tickets
+            active_tickets = await ticket_repo.find_all()
+            for ticket in active_tickets:
+                if ticket.get("status") == TicketStatus.ON_TRAVEL.value and ticket.get("travel_end_date"):
+                    end_date_str = ticket.get("travel_end_date")
+                    if isinstance(end_date_str, str):
+                         end_date = datetime.fromisoformat(end_date_str.replace('Z', '+00:00'))
+                    else:
+                         end_date = end_date_str
+                    
+                    if now > end_date:
+                        # Revert back to overstaying
+                        await ticket_repo.update(ticket["id"], {
+                            "status": TicketStatus.OVERSTAYING.value,
+                            "cause_of_overstaying": "Travel Exceeded Duration Limits",
+                            "updated_at": now
+                        })
+                        # Ensure notification triggers
+                        await db.notifications.insert_one(Notification(
+                            title="Travel Duration Expired",
+                            message=f"Vehicle {ticket.get('plate_number')} has exceeded its travel period and is overstaying.",
+                            reference_id=ticket.get('plate_number')
+                        ).dict())
+
             for status in status_list:
                 if status.is_overstaying:
                     plate = status.plate_number
+                    
+                    # Create ticket if none active
+                    if status.entry_time:
+                        active_ticket = await ticket_repo.find_active_ticket(plate)
+                        if not active_ticket:
+                            v_info = await visitor_repo.find_by_plate_number(plate)
+                            p_info = await vehicle_repo.find_by_plate_number(plate)
+                            
+                            vehicle_type = "Unknown"
+                            owner_name = "Unknown"
+                            purpose = None
+                            license_num = None
+                            gender = None
+                            address = None
+                            
+                            if v_info:
+                                vehicle_type = v_info.get("vehicle_type", "private")
+                                dl = v_info.get("driver_license", {})
+                                owner_name = f"{dl.get('first_name','')} {dl.get('last_name','')}".strip()
+                                purpose = v_info.get("purpose_of_visit")
+                                license_num = dl.get("license_number")
+                                gender = dl.get("gender")
+                                address = dl.get("address")
+                            elif p_info:
+                                vehicle_type = p_info.get("vehicle_type", "da_government")
+                                owner_name = p_info.get("owner_name", "Unknown")
+                            
+                            new_ticket = OverstayingTicket(
+                                plate_number=plate,
+                                vehicle_type=vehicle_type,
+                                owner_name=owner_name,
+                                purpose_of_visit=purpose,
+                                license_number=license_num,
+                                gender=gender,
+                                address=address,
+                                entry_time=status.entry_time
+                            )
+                            await ticket_repo.create(new_ticket.dict())
+
                     today = datetime.now(PHT_TZ).replace(hour=0, minute=0, second=0, microsecond=0)
                     existing = await db.notifications.find_one({
                         "reference_id": plate,
