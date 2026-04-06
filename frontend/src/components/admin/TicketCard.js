@@ -5,7 +5,7 @@ import { Badge } from "../ui/badge";
 import { Clock, User, Car } from "lucide-react";
 import TicketDetailModal from './TicketDetailModal';
 
-const TicketCard = ({ item, index }) => {
+const TicketCard = ({ item, index, isDimmed }) => {
   const [modalOpen, setModalOpen] = useState(false);
   
   // Calculate duration
@@ -20,7 +20,7 @@ const TicketCard = ({ item, index }) => {
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`mb-3 last:mb-0 transition-transform ${snapshot.isDragging ? 'rotate-2 scale-105 z-50 opacity-90' : ''}`}
+          className={`mb-3 last:mb-0 transition-transform ${snapshot.isDragging ? 'rotate-2 scale-105 z-50 opacity-90' : ''} ${isDimmed ? 'opacity-30 grayscale saturate-0' : ''}`}
         >
           <Card 
             onClick={() => setModalOpen(true)}

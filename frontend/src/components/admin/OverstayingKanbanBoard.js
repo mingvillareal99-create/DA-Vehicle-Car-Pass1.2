@@ -7,7 +7,7 @@ import { API } from '../../services/constants';
 import TicketCard from './TicketCard';
 import ResolutionModal from './ResolutionModal';
 import TravelModal from './TravelModal';
-import { AlertTriangle, Filter, Plus, Plane, Calendar as CalendarIcon } from "lucide-react";
+import { AlertTriangle, Filter, Plus, Plane, Calendar as CalendarIcon, Search } from "lucide-react";
 import { format } from "date-fns";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
 import { Calendar } from "../ui/calendar";
+import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 
 const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
   const { user } = useAuth();
@@ -29,6 +30,29 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
   });
   const [dateFilter, setDateFilter] = useState({ start: '', end: '' });
   const [filterType, setFilterType] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [vehicleTypeFilter, setVehicleTypeFilter] = useState('all');
+
+  const matchesFilter = (ticket) => {
+    // 1. Vehicle Type
+    if (vehicleTypeFilter !== 'all') {
+      if (vehicleTypeFilter === 'visitor' && ticket.vehicle_type !== 'visitor') return false;
+      if (vehicleTypeFilter === 'employee' && ticket.vehicle_type !== 'da_government') return false;
+    }
+    
+    // 2. Search Query (Plate, Owner Name, Ticket ID)
+    if (searchQuery.trim() !== '') {
+      const query = searchQuery.toLowerCase();
+      const plate = (ticket.plate_number || '').toLowerCase();
+      const owner = (ticket.owner_name || '').toLowerCase();
+      const ticketIdStr = ticket.ticket_number ? ticket.ticket_number.toLowerCase() : `ovr-${String(ticket.id).slice(-6).toLowerCase()}`;
+      
+      if (!plate.includes(query) && !owner.includes(query) && !ticketIdStr.includes(query)) {
+        return false;
+      }
+    }
+    return true;
+  };
 
   useEffect(() => {
     if (!filterType || filterType === 'custom') return;
@@ -209,74 +233,99 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
   const availableVehicles = vehicleStatus.filter(v => !activeTicketPlates.includes(v.plate_number));
 
   return (
-    <div className="flex flex-col h-full space-y-4">
-      <div className="flex justify-between items-center mb-2 px-1">
-        <div className="flex items-center space-x-2">
-            <Filter className="w-4 h-4 text-gray-500" />
-            <div className="flex items-center space-x-2 text-sm text-gray-600 bg-white p-1.5 rounded-md border shadow-sm h-10">
-                <span className="font-medium mr-1 whitespace-nowrap hidden sm:inline">Filter Resolved:</span>
-                
-                <Select value={filterType} onValueChange={setFilterType}>
-                    <SelectTrigger className="h-7 text-xs w-[140px] border-none shadow-none focus:ring-0 bg-gray-50">
-                        <SelectValue placeholder="Date Range Filter" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="all">All Available</SelectItem>
-                        <SelectItem value="7_days">Last 7 Days</SelectItem>
-                        <SelectItem value="14_days">Last 14 Days</SelectItem>
-                        <SelectItem value="30_days">Last 30 Days</SelectItem>
-                        <SelectItem value="custom">Custom Range</SelectItem>
-                    </SelectContent>
-                </Select>
+    <div className="relative flex flex-col h-full space-y-4">
+      <div className="flex flex-col 2xl:flex-row justify-between items-start 2xl:items-center gap-3 mb-2 px-1">
+        
+        {/* Filters Group */}
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Global Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-500" />
+            <Input
+              type="text"
+              placeholder="Search plate, owner, ID..."
+              className="pl-9 h-9 text-sm w-[200px] sm:w-[220px] border-gray-300 shadow-sm"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+            />
+          </div>
 
-                {filterType === 'custom' && (
-                  <div className="flex items-center space-x-2 animate-in fade-in slide-in-from-left-2 pl-2 border-l ml-2">
-                    <span className="text-xs text-gray-500">Start:</span>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className={`h-7 px-2 text-xs w-32 justify-start font-normal ${!dateFilter.start && 'text-gray-500'}`}>
-                          <CalendarIcon className="mr-2 h-3 w-3" />
-                          {dateFilter.start ? format(new Date(dateFilter.start), "PP") : <span>Start Date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-[100]" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={dateFilter.start ? new Date(dateFilter.start.replace(/-/g, '/')) : undefined}
-                          onSelect={(d) => setDateFilter({...dateFilter, start: d ? d.toLocaleDateString('en-CA') : ''})}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+          {/* Type Toggle */}
+          <ToggleGroup 
+            type="single" 
+            value={vehicleTypeFilter} 
+            onValueChange={(val) => val && setVehicleTypeFilter(val)}
+            className="bg-white border rounded-md shadow-sm h-9 p-1"
+          >
+            <ToggleGroupItem value="all" className="h-7 text-xs px-3">All Vehicles</ToggleGroupItem>
+            <ToggleGroupItem value="visitor" className="h-7 text-xs px-3">Visitors</ToggleGroupItem>
+            <ToggleGroupItem value="employee" className="h-7 text-xs px-3">Employees</ToggleGroupItem>
+          </ToggleGroup>
 
-                    <span className="text-xs text-gray-500">End:</span>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button variant="outline" className={`h-7 px-2 text-xs w-32 justify-start font-normal ${!dateFilter.end && 'text-gray-500'}`}>
-                          <CalendarIcon className="mr-2 h-3 w-3" />
-                          {dateFilter.end ? format(new Date(dateFilter.end), "PP") : <span>End Date</span>}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-[100]" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={dateFilter.end ? new Date(dateFilter.end.replace(/-/g, '/')) : undefined}
-                          onSelect={(d) => setDateFilter({...dateFilter, end: d ? d.toLocaleDateString('en-CA') : ''})}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                )}
-                
-                {(dateFilter.start || dateFilter.end || filterType) && (
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs ml-1 hover:bg-gray-100 text-gray-500" onClick={() => { setFilterType(''); setDateFilter({start:'', end:''}); }}>Clear</Button>
-                )}
-            </div>
+          {/* Date Filter */}
+          <div className="flex items-center text-sm text-gray-600 bg-white px-1.5 py-1 rounded-md border shadow-sm h-9">
+            <Filter className="w-4 h-4 text-gray-400 mx-1.5 hidden sm:block" />
+            <span className="font-medium mr-2 whitespace-nowrap hidden sm:inline text-gray-500">Resolved Date:</span>
+            
+            <Select value={filterType} onValueChange={setFilterType}>
+                <SelectTrigger className="h-7 text-xs w-[130px] border-none shadow-none focus:ring-0 bg-transparent px-2">
+                    <SelectValue placeholder="Select Range" />
+                </SelectTrigger>
+                <SelectContent>
+                    <SelectItem value="all">All Available</SelectItem>
+                    <SelectItem value="7_days">Last 7 Days</SelectItem>
+                    <SelectItem value="14_days">Last 14 Days</SelectItem>
+                    <SelectItem value="30_days">Last 30 Days</SelectItem>
+                    <SelectItem value="custom">Custom Range</SelectItem>
+                </SelectContent>
+            </Select>
+
+            {filterType === 'custom' && (
+              <div className="flex items-center space-x-2 animate-in fade-in slide-in-from-left-2 pl-2 border-l ml-1">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={`h-7 px-2 text-xs w-[110px] justify-start font-normal border-gray-200 ${!dateFilter.start && 'text-gray-500'}`}>
+                      <CalendarIcon className="mr-2 h-3 w-3" />
+                      {dateFilter.start ? format(new Date(dateFilter.start), "PP") : <span>Start Date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateFilter.start ? new Date(dateFilter.start.replace(/-/g, '/')) : undefined}
+                      onSelect={(d) => setDateFilter({...dateFilter, start: d ? d.toLocaleDateString('en-CA') : ''})}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <span className="text-gray-400">-</span>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className={`h-7 px-2 text-xs w-[110px] justify-start font-normal border-gray-200 ${!dateFilter.end && 'text-gray-500'}`}>
+                      <CalendarIcon className="mr-2 h-3 w-3" />
+                      {dateFilter.end ? format(new Date(dateFilter.end), "PP") : <span>End Date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0 z-[100]" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={dateFilter.end ? new Date(dateFilter.end.replace(/-/g, '/')) : undefined}
+                      onSelect={(d) => setDateFilter({...dateFilter, end: d ? d.toLocaleDateString('en-CA') : ''})}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
+            
+            {(dateFilter.start || dateFilter.end || filterType) && (
+                <Button variant="ghost" size="sm" className="h-6 px-2 text-xs ml-1 hover:bg-gray-100 text-gray-500" onClick={() => { setFilterType(''); setDateFilter({start:'', end:''}); }}>Clear</Button>
+            )}
+          </div>
         </div>
-        <Button onClick={() => setCreateModalOpen(true)} size="sm" className="bg-red-600 hover:bg-red-700">
-            <Plus className="w-4 h-4 mr-1" /> Create Ticket
-        </Button>
+
+        {/* Action Button Removed */}
       </div>
       
       <DragDropContext onDragEnd={onDragEnd}>
@@ -294,8 +343,16 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
                   <span className="flex items-center"><AlertTriangle className="w-4 h-4 text-red-500 mr-2"/> Overstaying</span>
                   <Badge variant="secondary" className="bg-gray-200">{tickets.overstaying.length}</Badge>
                 </h3>
-                {tickets.overstaying.map((t, i) => <TicketCard key={t.id} item={t} index={i} />)}
+                {tickets.overstaying.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} />)}
                 {provided.placeholder}
+                
+                <Button 
+                    variant="ghost" 
+                    className="w-full mt-2 text-gray-500 hover:text-red-700 hover:bg-red-50 border-dashed border-2 border-gray-300 hover:border-red-300 transition-colors h-12 flex items-center justify-center font-medium"
+                    onClick={() => setCreateModalOpen(true)}
+                >
+                    <Plus className="w-4 h-4 mr-2" /> Add Overstaying Vehicle
+                </Button>
               </div>
             )}
           </Droppable>
@@ -314,7 +371,7 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
                   <span>Under Investigation</span>
                   <Badge variant="secondary" className="bg-gray-200">{tickets.under_investigation.length}</Badge>
                 </h3>
-                {tickets.under_investigation.map((t, i) => <TicketCard key={t.id} item={t} index={i} />)}
+                {tickets.under_investigation.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} />)}
                 {provided.placeholder}
               </div>
             )}
@@ -332,7 +389,7 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
                   <span>Resolved</span>
                   <Badge variant="secondary" className="bg-gray-200">{tickets.resolved.length}</Badge>
                 </h3>
-                {tickets.resolved.map((t, i) => <TicketCard key={t.id} item={t} index={i} />)}
+                {tickets.resolved.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} />)}
                 {provided.placeholder}
               </div>
             )}
@@ -350,7 +407,7 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
                   <span className="flex items-center"><Plane className="w-4 h-4 text-blue-500 mr-2"/> On Travel</span>
                   <Badge variant="secondary" className="bg-gray-200">{tickets.on_travel.length}</Badge>
                 </h3>
-                {tickets.on_travel.map((t, i) => <TicketCard key={t.id} item={t} index={i} />)}
+                {tickets.on_travel.map((t, i) => <TicketCard key={t.id} item={t} index={i} isDimmed={!matchesFilter(t)} />)}
                 {provided.placeholder}
               </div>
             )}
