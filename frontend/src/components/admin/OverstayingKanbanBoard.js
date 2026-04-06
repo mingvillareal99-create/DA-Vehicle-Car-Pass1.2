@@ -7,7 +7,8 @@ import { API } from '../../services/constants';
 import TicketCard from './TicketCard';
 import ResolutionModal from './ResolutionModal';
 import TravelModal from './TravelModal';
-import { AlertTriangle, Filter, Plus, Plane, Calendar as CalendarIcon, Search } from "lucide-react";
+import { AlertTriangle, Filter, Plus, Plane, Calendar as CalendarIcon, Search, Download } from "lucide-react";
+import * as XLSX from 'xlsx';
 import { format } from "date-fns";
 import { Input } from "../ui/input";
 import { Button } from "../ui/button";
@@ -272,6 +273,37 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
   const activeTicketPlates = [...tickets.overstaying, ...tickets.on_travel, ...tickets.under_investigation].map(t => t.plate_number);
   const availableVehicles = vehicleStatus.filter(v => !activeTicketPlates.includes(v.plate_number));
 
+  const handleExportReport = () => {
+    const columns = ['overstaying', 'under_investigation', 'resolved', 'on_travel'];
+    let allFiltered = [];
+    columns.forEach(col => {
+      allFiltered = [...allFiltered, ...tickets[col].filter(matchesFilter)];
+    });
+
+    if (allFiltered.length === 0) {
+      toast({ description: "No tickets match current filters." });
+      return;
+    }
+
+    const dataRow = allFiltered.map(t => ({
+      'Ticket Number': t.ticket_number || `OVR-${t.id.slice(-6).toUpperCase()}`,
+      'Plate Number': t.plate_number || 'N/A',
+      'Owner': t.owner_name || 'N/A',
+      'Vehicle Type': t.vehicle_type ? t.vehicle_type.replace('_', ' ').toUpperCase() : 'N/A',
+      'Status': t.status ? t.status.replace('_', ' ').toUpperCase() : 'N/A',
+      'Entry Time': t.entry_time ? new Date(t.entry_time).toLocaleString() : 'N/A',
+      'Resolution Note': t.resolution_note || 'N/A',
+      'Resolved At': t.resolved_at ? new Date(t.resolved_at).toLocaleString() : 'Pending',
+      'High Priority': t.is_important ? 'Yes' : 'No'
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataRow);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Filtered Report");
+    XLSX.writeFile(workbook, `Shift_Report_${format(new Date(), "yyyy-MM-dd_HHmm")}.xlsx`);
+    toast({ title: "Export Successful", description: "Your Excel report has been downloaded." });
+  };
+
   return (
     <div className="relative flex flex-col h-full space-y-4">
       <div className="flex flex-col 2xl:flex-row justify-between items-start 2xl:items-center gap-3 mb-2 px-1">
@@ -365,7 +397,10 @@ const OverstayingKanbanBoard = ({ vehicleStatus = [] }) => {
           </div>
         </div>
 
-        {/* Action Button Removed */}
+        <Button onClick={handleExportReport} className="h-9 px-4 text-sm font-medium bg-green-600 hover:bg-green-700 text-white shadow-sm transition-colors rounded-md flex items-center shrink-0">
+          <Download className="w-4 h-4 mr-2" />
+          Export Report
+        </Button>
       </div>
       
       <DragDropContext onDragEnd={onDragEnd}>
