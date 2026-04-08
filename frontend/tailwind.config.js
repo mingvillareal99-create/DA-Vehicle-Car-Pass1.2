@@ -52,7 +52,14 @@ module.exports = {
   				'3': 'hsl(var(--chart-3))',
   				'4': 'hsl(var(--chart-4))',
   				'5': 'hsl(var(--chart-5))'
-  			}
+  			},
+			da: {
+                primary: '#004B23',
+                secondary: '#38B000',
+                accent: '#FFD60A',
+                action: '#FF8500',
+                bg: '#F8F9FA'
+            }
   		},
   		keyframes: {
   			'accordion-down': {

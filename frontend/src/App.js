@@ -50,7 +50,7 @@ const AppContent = () => {
           <img 
             src={DA_LOGO_URL} 
             alt="DA Logo"
-            className="w-16 h-16 mx-auto mb-4 animate-pulse"
+            className="w-16 h-16 mx-auto mb-4 animate-pulse object-cover rounded-full"
             onError={(e) => {
               e.target.style.display = 'none';
               e.target.nextSibling.style.display = 'flex';
@@ -83,7 +83,7 @@ const AppContent = () => {
                 <img 
                   src={DA_LOGO_URL} 
                   alt="DA Logo"
-                  className="w-8 h-8 mr-3"
+                  className="w-8 h-8 mr-3 object-cover rounded-full"
                   onError={(e) => {
                     e.target.style.display = 'none';
                     e.target.nextSibling.style.display = 'flex';

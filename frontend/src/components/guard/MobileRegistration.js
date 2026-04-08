@@ -296,7 +296,7 @@ const MobileRegistration = () => {
           <div className="bg-white rounded-xl shadow-lg p-6">
             {/* Header */}
             <div className="text-center mb-6">
-              <img src={DA_LOGO_URL} alt="DA Logo" className="w-16 h-16 mx-auto mb-4" />
+              <img src={DA_LOGO_URL} alt="DA Logo" className="w-16 h-16 mx-auto mb-4 object-cover rounded-full" />
               <h2 className="text-xl font-bold text-gray-900">Visitor Registration</h2>
               <p className="text-gray-600">Step 1: Capture Driver&apos;s License</p>
             </div>
@@ -395,7 +395,7 @@ const MobileRegistration = () => {
           <div className="bg-white rounded-xl shadow-lg p-6">
             {/* Header */}
             <div className="text-center mb-6">
-              <img src={DA_LOGO_URL} alt="DA Logo" className="w-16 h-16 mx-auto mb-4" />
+              <img src={DA_LOGO_URL} alt="DA Logo" className="w-16 h-16 mx-auto mb-4 object-cover rounded-full" />
               <h2 className="text-xl font-bold text-gray-900">Driver Information</h2>
               <p className="text-gray-600">Step 2: Verify & Edit Details</p>
             </div>
@@ -548,7 +548,7 @@ const MobileRegistration = () => {
           <div className="bg-white rounded-xl shadow-lg p-6">
             {/* Header */}
             <div className="text-center mb-6">
-              <img src={DA_LOGO_URL} alt="DA Logo" className="w-16 h-16 mx-auto mb-4" />
+              <img src={DA_LOGO_URL} alt="DA Logo" className="w-16 h-16 mx-auto mb-4 object-cover rounded-full" />
               <h2 className="text-xl font-bold text-gray-900">Vehicle Information</h2>
               <p className="text-gray-600">Step 3: Vehicle & Visit Details</p>
             </div>
@@ -764,7 +764,7 @@ const MobileRegistration = () => {
                       </div>
                     </div>
 
-                    <img src={DA_LOGO_URL} alt="DA Logo" style={{ height: '36px', width: '36px', objectFit: 'contain' }} crossOrigin="anonymous" />
+                    <img src={DA_LOGO_URL} alt="DA Logo" style={{ height: '36px', width: '36px', objectFit: 'cover', borderRadius: '50%' }} crossOrigin="anonymous" />
                   </div>
 
                   {/* Main Body (High Contrast for Scanning) */}

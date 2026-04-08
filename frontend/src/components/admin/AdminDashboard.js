@@ -44,13 +44,27 @@ import {
   Menu,
   X,
   Database,
-  LayoutDashboard
+  LayoutDashboard,
+  Settings,
+  Clock,
+  Moon,
+  Sun
 } from "lucide-react";
 
 const AdminDashboard = () => {
   // Navigation state
   const [activeTab, setActiveTab] = useState("status");
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  // Toggle dark mode effect
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
 
   // Dashboard data state
   const [stats, setStats] = useState({});
@@ -222,7 +236,7 @@ const AdminDashboard = () => {
   };
 
   return (
-    <Tabs value={activeTab} onValueChange={setActiveTab} className="flex h-screen overflow-hidden bg-gradient-to-br from-green-50 to-emerald-50">
+    <Tabs value={activeTab} onValueChange={setActiveTab} className={`flex h-screen overflow-hidden transition-colors duration-300 ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-[#F8F9FA]'}`}>
       <OfflineStatus isOnline={isOnline} />
       
       {/* Mobile Sidebar Overlay */}
@@ -235,43 +249,43 @@ const AdminDashboard = () => {
 
       {/* Sidebar */}
       <div 
-        className={`fixed md:static inset-y-0 left-0 z-50 flex flex-col bg-white border-r border-green-100 transition-all duration-300 transform 
+        className={`fixed md:static inset-y-0 left-0 z-50 flex flex-col bg-[#004B23] text-white transition-all duration-300 transform 
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} 
           w-64 md:w-20 md:hover:w-64 group shadow-xl md:shadow-none`}
       >
         {/* Sidebar Header */}
-        <div className="flex items-center justify-between h-16 px-4 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between h-16 px-4 py-4 border-b border-[#38B000]/30">
           <div className="flex items-center overflow-hidden">
             <img 
               src={DA_LOGO_URL} 
               alt="DA Logo"
-              className="w-10 h-10 object-contain min-w-[40px]"
+              className="w-10 h-10 object-cover min-w-[40px] drop-shadow-md bg-white rounded-full p-1 border-2 border-[#FFD60A]"
               onError={(e) => {
                 e.target.style.display = 'none';
                 e.target.nextSibling.style.display = 'flex';
               }}
             />
-            <div className="w-10 h-10 bg-green-600 rounded-full hidden items-center justify-center min-w-[40px]">
+            <div className="w-10 h-10 bg-[#38B000] rounded-full hidden items-center justify-center min-w-[40px]">
               <Building className="w-5 h-5 text-white" />
             </div>
-            <span className="ml-3 font-bold text-green-800 whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75">
-              DA Region V
+            <span className="ml-3 font-bold text-white whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75 tracking-wide">
+              DA Bicol Region
             </span>
           </div>
-          <Button variant="ghost" size="icon" className="md:hidden min-w-[40px]" onClick={() => setIsMobileMenuOpen(false)}>
-            <X className="w-5 h-5 text-gray-500" />
+          <Button variant="ghost" size="icon" className="md:hidden min-w-[40px] text-white hover:bg-[#38B000]/50" onClick={() => setIsMobileMenuOpen(false)}>
+            <X className="w-5 h-5" />
           </Button>
         </div>
 
         {/* Navigation Items */}
-        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-2 font-medium">
           {[
-            { id: 'status', label: 'Vehicle Status', icon: LayoutDashboard },
-            { id: 'overstaying', label: 'Overstaying', icon: AlertTriangle, color: 'text-red-500 hover:text-red-600', activeClass: 'bg-red-50 text-red-700 font-semibold' },
+            { id: 'status', label: 'Vehicle Status', icon: Car },
+            { id: 'overstaying', label: 'Overstaying', icon: Clock, color: 'text-[#FFD60A] hover:text-[#FFD60A]' },
             { id: 'visitors', label: 'Visitors', icon: Users },
-            { id: 'vehicles', label: 'Manage Vehicles', icon: Car },
+            { id: 'vehicles', label: 'Manage Vehicles', icon: Settings },
             { id: 'mobile', label: 'Mobile Tools', icon: Smartphone },
-            { id: 'analytics', label: 'Analytics', icon: BarChart2, color: 'text-green-600' },
+            { id: 'analytics', label: 'Analytics', icon: BarChart2 },
             { id: 'database', label: 'Database', icon: Database }
           ].map((item) => (
             <button
@@ -280,14 +294,14 @@ const AdminDashboard = () => {
                 setActiveTab(item.id);
                 setIsMobileMenuOpen(false);
               }}
-              className={`w-full flex items-center px-3 py-3 rounded-lg transition-colors overflow-hidden
+              className={`w-full flex items-center px-3 py-3 rounded-xl transition-all duration-200 overflow-hidden group/nav
                 ${activeTab === item.id 
-                  ? (item.activeClass || 'bg-green-100 text-green-800 font-semibold') 
-                  : `hover:bg-gray-100 text-gray-600 ${item.color || ''}`
+                  ? 'bg-[#38B000] text-white shadow-md font-bold' 
+                  : `hover:bg-[#38B000]/20 text-green-50 ${item.color || ''}`
                 }`}
             >
-              <item.icon className={`w-6 h-6 min-w-[24px] ${activeTab === item.id ? (item.id === 'overstaying' ? 'text-red-600' : 'text-green-700') : ''}`} />
-              <span className="ml-4 whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75">
+              <item.icon className={`w-6 h-6 min-w-[24px] transition-transform ${activeTab === item.id ? 'scale-110' : 'opacity-80 group-hover/nav:opacity-100'}`} />
+              <span className="ml-4 whitespace-nowrap tracking-wide opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75">
                 {item.label}
               </span>
             </button>
@@ -295,20 +309,20 @@ const AdminDashboard = () => {
         </div>
 
         {/* Admin Profile & Logout */}
-        <div className="p-4 border-t border-gray-100">
+        <div className="p-4 border-t border-[#38B000]/30 bg-[#004B23]">
           <div className="flex flex-col space-y-4">
              <div className="flex items-center overflow-hidden px-1">
-               <div className="w-10 h-10 min-w-[40px] bg-green-200 rounded-full flex items-center justify-center font-bold text-green-800 text-lg shadow-sm">
+               <div className="w-10 h-10 min-w-[40px] bg-[#38B000] border-2 border-[#FFD60A] rounded-full flex items-center justify-center font-bold text-white text-lg shadow-md">
                  {user?.username?.charAt(0)?.toUpperCase()}
                </div>
                <div className="ml-3 whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75 flex flex-col justify-center">
-                 <p className="text-sm font-bold text-gray-800 truncate leading-tight w-36">{user?.username}</p>
-                 <span className="text-xs text-gray-500 font-medium">Administrator</span>
+                 <p className="text-sm font-bold text-white truncate leading-tight w-36">{user?.username}</p>
+                 <span className="text-xs text-green-200 font-medium">Administrator</span>
                </div>
              </div>
              
-             <Button variant="outline" className="w-full justify-start text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 overflow-hidden px-3 h-10" onClick={() => window.location.href='/login'}>
-               <LogOut className="w-5 h-5 min-w-[20px]" />
+             <Button variant="outline" className="w-full justify-start text-white bg-transparent hover:bg-red-600 hover:text-white border-transparent hover:border-red-600 overflow-hidden px-3 h-10 transition-colors" onClick={() => window.location.href='/login'}>
+               <LogOut className="w-5 h-5 min-w-[20px] text-red-400 group-hover:text-white" />
                <span className="ml-3 whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75 font-semibold">Log out</span>
              </Button>
           </div>
@@ -319,23 +333,37 @@ const AdminDashboard = () => {
       <div className="flex-1 overflow-y-auto w-full pb-10">
         <div className="p-4 md:p-8 max-w-7xl mx-auto w-full">
           {/* Header */}
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
             <div className="flex items-center space-x-3">
-              <Button variant="outline" size="icon" className="md:hidden bg-white" onClick={() => setIsMobileMenuOpen(true)}>
-                <Menu className="w-5 h-5 text-gray-700" />
+              <Button variant="outline" size="icon" className={`md:hidden ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'}`} onClick={() => setIsMobileMenuOpen(true)}>
+                <Menu className="w-5 h-5" />
               </Button>
               <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-                <p className="text-sm text-gray-500 hidden sm:block">Department of Agriculture Region V - Vehicle Monitoring</p>
+                <div className="flex items-center space-x-2 text-sm font-medium text-[#004B23] dark:text-[#38B000] mb-1">
+                  <span>Admin</span>
+                  <span>/</span>
+                  <span className="capitalize">{activeTab.replace('-', ' ')}</span>
+                </div>
+                <h1 className={`text-2xl md:text-3xl font-bold tracking-tight ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>Admin Dashboard</h1>
               </div>
             </div>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
+            {/* Dark Mode Toggle */}
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setIsDarkMode(!isDarkMode)}
+              className={`h-10 w-10 rounded-full border-none shadow-sm transition-transform hover:scale-105 ${isDarkMode ? 'bg-gray-800 text-yellow-500' : 'bg-white text-gray-700'}`}
+            >
+              {isDarkMode ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </Button>
+            
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" className="relative p-2 h-10 w-10 border-gray-200 bg-white" data-testid="notifications-bell">
-                  <Bell className="w-5 h-5 text-gray-700" />
+                <Button variant="outline" className={`relative p-2 h-10 w-10 rounded-full border-none shadow-sm transition-transform hover:scale-105 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`} data-testid="notifications-bell">
+                  <Bell className="w-5 h-5" />
                   {notifications.filter(n => !n.is_read).length > 0 && (
-                    <span className="absolute top-0 right-0 inline-flex items-center justify-center p-1 text-[10px] font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-red-600 rounded-full min-w-4 h-4">
+                    <span className="absolute top-0 right-0 inline-flex items-center justify-center p-1 text-[10px] font-bold leading-none text-white transform translate-x-1/4 -translate-y-1/4 bg-[#FF8500] rounded-full min-w-4 h-4 shadow-md">
                       {notifications.filter(n => !n.is_read).length}
                     </span>
                   )}
@@ -377,75 +405,85 @@ const AdminDashboard = () => {
             </Dialog>
 
             {!isOnline && (
-              <Badge variant="secondary" className="bg-orange-100 text-orange-800">
+              <Badge variant="secondary" className="bg-[#FFD60A]/20 text-[#6B5A00] dark:text-[#FFD60A] border-[#FFD60A]">
                 <WifiOff className="w-3 h-3 mr-1" />
                 Offline
               </Badge>
             )}
-            <Badge variant="default" className="px-3 py-1 bg-green-600">
-              <Shield className="w-4 h-4 mr-1" />
+            <Badge variant="default" className="px-3 py-1 bg-[#004B23] shadow-md">
+              <Shield className="w-4 h-4 mr-1 text-[#FFD60A]" />
               Admin Access
             </Badge>
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-          <Card className="border-green-200" data-testid="stats-today-activity">
-            <CardContent className="p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-5 mb-8">
+          <Card className={`border-l-4 border-l-[#004B23] border-transparent shadow-sm hover:shadow-md transition-shadow duration-300 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`} data-testid="stats-today-activity">
+            <CardContent className="p-5">
               <div className="flex items-center">
-                <Activity className="h-8 w-8 text-green-600" />
+                <div className="p-2 bg-[#38B000]/10 rounded-lg">
+                  <Activity className="h-7 w-7 text-[#38B000]" />
+                </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Today&apos;s Activity</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.today_entries_exits || 0}</p>
+                  <p className={`text-xs font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Today&apos;s Activity</p>
+                  <p className={`text-2xl font-bold mt-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.today_entries_exits || 0}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           
-          <Card className="border-emerald-200" data-testid="stats-total-vehicles">
-            <CardContent className="p-4">
+          <Card className={`border-l-4 border-l-[#38B000] border-transparent shadow-sm hover:shadow-md transition-shadow duration-300 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`} data-testid="stats-total-vehicles">
+            <CardContent className="p-5">
               <div className="flex items-center">
-                <Car className="h-8 w-8 text-emerald-600" />
+                 <div className="p-2 bg-[#38B000]/10 rounded-lg">
+                  <Car className="h-7 w-7 text-[#38B000]" />
+                </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Total Vehicles</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.total_vehicles || 0}</p>
+                  <p className={`text-xs font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Total Vehicles</p>
+                  <p className={`text-2xl font-bold mt-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.total_vehicles || 0}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           
-          <Card className="border-blue-200" data-testid="stats-active-visitors">
-            <CardContent className="p-4">
+          <Card className={`border-l-4 border-l-[#FF8500] border-transparent shadow-sm hover:shadow-md transition-shadow duration-300 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`} data-testid="stats-active-visitors">
+            <CardContent className="p-5">
               <div className="flex items-center">
-                <UserPlus className="h-8 w-8 text-blue-600" />
+                <div className="p-2 bg-[#FF8500]/10 rounded-lg">
+                  <UserPlus className="h-7 w-7 text-[#FF8500]" />
+                </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Active Visitors</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.total_visitors || 0}</p>
+                  <p className={`text-xs font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Active Visitors</p>
+                  <p className={`text-2xl font-bold mt-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.total_visitors || 0}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           
-          <Card className="border-teal-200" data-testid="stats-inside-now">
-            <CardContent className="p-4">
+          <Card className={`border-l-4 border-l-[#004B23] border-transparent shadow-sm hover:shadow-md transition-shadow duration-300 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`} data-testid="stats-inside-now">
+            <CardContent className="p-5">
               <div className="flex items-center">
-                <Users className="h-8 w-8 text-teal-600" />
+                <div className="p-2 bg-[#004B23]/10 rounded-lg">
+                  <Users className="h-7 w-7 text-[#004B23] dark:text-[#38B000]" />
+                </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Inside Now</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.vehicles_inside || 0}</p>
+                  <p className={`text-xs font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Inside Now</p>
+                  <p className={`text-2xl font-bold mt-1 ${isDarkMode ? 'text-white' : 'text-gray-900'}`}>{stats.vehicles_inside || 0}</p>
                 </div>
               </div>
             </CardContent>
           </Card>
           
-          <Card className="border-red-200" data-testid="stats-overstaying">
-            <CardContent className="p-4">
+          <Card className={`border-l-4 border-l-red-500 border-transparent shadow-sm hover:shadow-md transition-shadow duration-300 ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`} data-testid="stats-overstaying">
+            <CardContent className="p-5">
               <div className="flex items-center">
-                <AlertTriangle className="h-8 w-8 text-red-600" />
+                <div className="p-2 bg-red-500/10 rounded-lg">
+                  <AlertTriangle className="h-7 w-7 text-red-500" />
+                </div>
                 <div className="ml-4">
-                  <p className="text-sm font-medium text-gray-600">Overstaying</p>
-                  <p className="text-2xl font-bold text-gray-900">{stats.overstaying_vehicles || 0}</p>
+                  <p className={`text-xs font-semibold uppercase tracking-wider ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>Overstaying</p>
+                  <p className={`text-2xl font-bold mt-1 text-red-500`}>{stats.overstaying_vehicles || 0}</p>
                 </div>
               </div>
             </CardContent>

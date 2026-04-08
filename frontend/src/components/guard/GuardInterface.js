@@ -116,7 +116,7 @@ const GuardInterface = () => {
               <img 
                 src={DA_LOGO_URL} 
                 alt="DA Logo"
-                className="w-12 h-12 object-contain"
+                className="w-12 h-12 object-cover rounded-full"
                 onError={(e) => {
                   e.target.style.display = 'none';
                   e.target.nextSibling.style.display = 'flex';

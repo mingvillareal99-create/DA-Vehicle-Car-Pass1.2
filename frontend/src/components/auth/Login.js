@@ -20,7 +20,7 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  
+
   // Auth context
   const { login, isOnline } = useAuth();
 
@@ -29,7 +29,7 @@ const Login = () => {
    */
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Validate inputs
     if (!username.trim() || !password.trim()) {
       setError('Please enter both username and password');
@@ -47,39 +47,52 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-green-50 via-emerald-50 to-teal-50 flex items-center justify-center p-4">
-      {/* Offline indicator */}
-      <OfflineStatus isOnline={isOnline} />
+    <div className="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden bg-gradient-to-br from-[#004B23] via-[#004B23]/90 to-[#38B000]">
+      {/* Background Image Layer (shows over the gradient if the file exists) */}
+      <div 
+        className="absolute inset-0 z-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url('/bg_gatepass.jpg')" }}
+      />
       
-      <Card className="w-full max-w-md shadow-xl border-0">
-        <CardHeader className="text-center pb-8">
+      {/* Subtle overlay to enhance text readability over the background image */}
+      <div className="absolute inset-0 z-0 bg-[#004B23]/10 backdrop-blur-[1px]"></div>
+
+      {/* Content wrapper */}
+      <div className="relative z-10 w-full flex flex-col items-center justify-center">
+        {/* Offline indicator */}
+        <OfflineStatus isOnline={isOnline} />
+
+        <Card className="w-full max-w-md shadow-2xl border-0 bg-white/95 backdrop-blur-md relative overflow-hidden mt-4">
+        {/* Accent bar at top */}
+        <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-[#FFD60A] to-[#FF8500]" />
+        <CardHeader className="text-center pb-8 pt-10">
           {/* DA Logo */}
-          <div className="mx-auto w-20 h-20 mb-6 flex items-center justify-center">
-            <img 
-              src={DA_LOGO_URL} 
+          <div className="mx-auto w-28 h-28 mb-6 flex items-center justify-center bg-white rounded-full p-2 shadow-lg border-2 border-[#FFD60A]/50">
+            <img
+              src={DA_LOGO_URL}
               alt="Department of Agriculture Region V"
-              className="w-full h-full object-contain"
+              className="w-full h-full object-cover rounded-full"
               onError={(e) => {
                 e.target.style.display = 'none';
                 e.target.nextSibling.style.display = 'flex';
               }}
             />
             {/* Fallback icon if logo fails to load */}
-            <div className="w-20 h-20 bg-green-600 rounded-full hidden items-center justify-center">
-              <Building className="w-10 h-10 text-white" />
+            <div className="w-full h-full bg-[#38B000] rounded-full hidden items-center justify-center">
+              <Building className="w-12 h-12 text-white" />
             </div>
           </div>
-          
+
           {/* Title */}
-          <CardTitle className="text-2xl font-bold text-gray-900 mb-2">
-            DA Vehicle Gate Pass
+          <CardTitle className="text-3xl font-extrabold text-[#004B23] mb-2 tracking-tight">
+            DA Gate Pass System
           </CardTitle>
-          <p className="text-gray-600">Department of Agriculture Region V</p>
-          <p className="text-sm text-gray-500">Sign in to access the vehicle monitoring system</p>
-          
+          <p className="text-gray-600 font-semibold tracking-wide">Department of Agriculture Region V</p>
+          <p className="text-sm text-gray-500 mt-2">Sign in to access the vehicle monitoring system</p>
+
           {/* Offline mode indicator */}
           {!isOnline && (
-            <div className="mt-4 flex items-center justify-center space-x-2 text-orange-600">
+            <div className="mt-4 flex items-center justify-center space-x-2 text-[#FF8500] font-medium bg-[#FF8500]/10 py-1.5 px-3 rounded-full mx-auto w-max">
               <WifiOff className="w-4 h-4" />
               <span className="text-sm">Offline Mode</span>
             </div>
@@ -90,7 +103,7 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Username field */}
             <div>
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="username" className="text-sm font-semibold text-gray-700 ml-1 mb-1 block">Username</Label>
               <Input
                 id="username"
                 type="text"
@@ -98,14 +111,14 @@ const Login = () => {
                 onChange={(e) => setUsername(e.target.value)}
                 required
                 placeholder="Enter your username"
-                className="mt-1 text-lg"
+                className="h-12 px-4 rounded-xl border-gray-200 bg-gray-50 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[#38B000]/30 focus-visible:border-[#38B000] shadow-inner transition-all text-base placeholder:text-gray-400 mt-1"
                 data-testid="login-username-input"
               />
             </div>
 
             {/* Password field */}
             <div>
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="text-sm font-semibold text-gray-700 ml-1 mb-1 block">Password</Label>
               <div className="relative mt-1">
                 <Input
                   id="password"
@@ -114,7 +127,7 @@ const Login = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   placeholder="Enter your password"
-                  className="text-lg pr-10"
+                  className="h-12 px-4 rounded-xl border-gray-200 bg-gray-50 focus-visible:bg-white focus-visible:ring-2 focus-visible:ring-[#38B000]/30 focus-visible:border-[#38B000] shadow-inner transition-all text-base placeholder:text-gray-400 pr-11"
                   data-testid="login-password-input"
                 />
                 <button
@@ -142,18 +155,19 @@ const Login = () => {
             )}
 
             {/* Submit button */}
-            <Button 
-              type="submit" 
-              className="w-full bg-green-600 hover:bg-green-700 text-lg py-3" 
+            <Button
+              type="submit"
+              className="w-full bg-[#004B23] hover:bg-[#38B000] text-white text-lg py-6 mt-4 shadow-md transition-all duration-300 hover:shadow-lg"
               disabled={loading}
               data-testid="login-submit-btn"
             >
-              {loading ? 'Signing In...' : 'Sign In'}
+              {loading ? 'Authenticating...' : 'Sign In'}
               <LogIn className="w-5 h-5 ml-2" />
             </Button>
           </form>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 };
