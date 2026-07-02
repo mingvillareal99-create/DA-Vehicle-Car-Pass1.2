@@ -1226,6 +1226,7 @@ async def get_collection_data(
             if '_id' in doc: doc['_id'] = str(doc['_id'])
             documents.append({
                 "_id": doc.get('_id'),
+                "id": doc.get('id'),
                 "plate_number": doc.get('plate_number'),
                 "vehicle_type": doc.get('vehicle_type'),
                 "owner_name": doc.get('owner_name'),
@@ -1237,6 +1238,7 @@ async def get_collection_data(
         for d in da_docs:
             documents.append({
                 "_id": str(d.get("_id", d.get("id"))),
+                "id": str(d.get("_id", d.get("id"))),
                 "plate_number": d.get("vehicle", {}).get("plate_number"),
                 "vehicle_type": d.get("vehicle", {}).get("type", "company"),
                 "owner_name": f"{d.get('owner', {}).get('first_name', '')} {d.get('owner', {}).get('family_name', '')}".strip() or "Unknown",
@@ -1541,6 +1543,55 @@ async def add_ticket_note(ticket_id: str, request: TicketNoteRequest, current_us
         raise HTTPException(status_code=500, detail="Failed to add note")
         
     return {"success": True, "note": new_note.dict()}
+
+class OCRTextRequest(BaseModel):
+    raw_text: str
+
+@api_router.post("/parse-license-local")
+async def parse_license_local(request: OCRTextRequest):
+    try:
+        import requests
+        import json
+        
+        system_prompt = """
+        You are a specialized Data Extraction Engine. Extract data from the messy OCR text into JSON.
+        Extraction Rules:
+        - name_logic: Find the line containing a comma (,). Text before comma is Last Name. Text after is First Name. Last word is Middle Name. Remove non-alphabetical garbage.
+        - license_number: Extract pattern [Letter][2 digits]-[2 digits]-[6 digits]. (e.g., E04-22-301764)
+        - date_of_birth: Extract text in YYYY/MM/DD format. Ignore anything else. Format to YYYY-MM-DD.
+        - address: Extract block after "Address" ending before "License No" or similar bounds. Clean up symbols. If text contains 4418 or PILI, format it nicely to include "Pili, Camarines Sur".
+        - gender: Standalone "M" or "F" becomes "male" or "female".
+        Output strictly in JSON format matching this structure exactly (all lowercase keys):
+        {
+          "license_number": "", "last_name": "", "first_name": "", "middle_name": "", "date_of_birth": "YYYY-MM-DD", "gender": "", "address": ""
+        }
+        Do not output any markdown formatting or conversation, just the raw JSON object.
+        """
+
+        payload = {
+            "model": "llama3.2",
+            "prompt": request.raw_text,
+            "system": system_prompt,
+            "stream": False,
+            "format": "json"
+        }
+        
+        # Checking local Ollama API
+        response = requests.post("http://localhost:11434/api/generate", json=payload, timeout=30)
+        response.raise_for_status()
+        
+        result_json = response.json()
+        response_text = result_json.get("response", "{}")
+        
+        parsed_data = json.loads(response_text)
+        return {"success": True, "data": parsed_data}
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Ollama connection error: {e}")
+        return {"success": False, "error": "AI Inference Engine offline or unreachable"}
+    except Exception as e:
+        logger.error(f"AI Parse error: {e}")
+        return {"success": False, "error": str(e)}
 
 app.include_router(api_router)
 

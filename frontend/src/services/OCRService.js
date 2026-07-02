@@ -3,6 +3,7 @@
  * Handles optical character recognition with image preprocessing
  */
 import Tesseract from 'tesseract.js';
+import { API } from './constants';
 
 class OCRService {
   /**
@@ -31,15 +32,41 @@ class OCRService {
         tessedit_pageseg_mode: Tesseract.PSM.AUTO
       });
       
-      progressCallback && progressCallback(95, 'Processing data...');
+      progressCallback && progressCallback(95, 'AI Cleaning Text...');
       
       const text = result.data.text;
       console.log('OCR Raw Text:', text);
       console.log('OCR Confidence:', result.data.confidence);
       
-      // Parse license data using enhanced patterns
-      const licenseData = this.parsePhilippineLicense(text);
-      console.log('Extracted License Data:', licenseData);
+      let licenseData = null;
+      let validationErrors = [];
+      
+      try {
+        console.log('Sending text to local AI inference engine...');
+        const response = await fetch(`${API}/parse-license-local`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ raw_text: text })
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP Error: ${response.status}`);
+        }
+        
+        const aiResult = await response.json();
+        if (aiResult.success) {
+           licenseData = aiResult.data;
+           console.log('AI Extracted License Data:', licenseData);
+        } else {
+           console.warn("AI extraction failed, falling back to local JS regex:", aiResult.error);
+           licenseData = this.parsePhilippineLicense(text);
+        }
+      } catch (err) {
+        console.warn("Network error reaching AI proxy, falling back to local JS regex:", err);
+        licenseData = this.parsePhilippineLicense(text);
+      }
       
       progressCallback && progressCallback(100, 'Complete!');
       
@@ -105,17 +132,40 @@ class OCRService {
    * Parse Philippine driver's license text to extract structured data
    */
   static parsePhilippineLicense(text) {
-    const cleanText = text.replace(/[^\w\s\-\/.,]/g, ' ').replace(/\s+/g, ' ').trim();
-    console.log('Clean text for parsing:', cleanText);
-    
+    console.log('Raw text for parsing:', text);
+
+    // 1. Data Cleaning
+    // Remove headers like "REPUBLIC OF THE PHILIPPINES", "DRIVER'S LICENSE", or "Last Name. First Name."
+    // Also remove garbage characters like '< a =' which often appear in address OCR
+    let cleanedText = text
+      .replace(/REPUBLIC OF THE PHILIPPINES/gi, '')
+      .replace(/DRIVER'?S?\s*LICENSE/gi, '')
+      .replace(/Last Name\.?\s*First Name\.?\s*Middle Name/gi, '')
+      .replace(/Last Name\.?\s*First Name\.?/gi, '')
+      .replace(/[<=]/g, ' ')
+      .replace(/<\s*a\s*=/gi, ' ');
+
+    const lines = cleanedText.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+    const joinedText = lines.join(' ');
+
+    const { last_name, first_name, middle_name } = this.extractNames(lines);
+    let address = this.extractAddress(joinedText);
+
+    // Bicol Sanity Check: If "4418" or "PILI" is detected, ensure proper formatting
+    if (address.match(/(4418|PILI)/i)) {
+      if (!address.match(/Pili,\s*Camarines\s*Sur/i)) {
+        address = address.replace(/(4418|PILI)/gi, 'Pili, Camarines Sur');
+      }
+    }
+
     return {
-      license_number: this.extractLicenseNumber(cleanText),
-      last_name: this.extractLastName(cleanText),
-      first_name: this.extractFirstName(cleanText),
-      middle_name: this.extractMiddleName(cleanText),
-      date_of_birth: this.extractDateOfBirth(cleanText),
-      address: this.extractAddress(cleanText),
-      gender: this.extractGender(cleanText)
+      license_number: this.extractLicenseNumber(cleanedText),
+      last_name: last_name,
+      first_name: first_name,
+      middle_name: middle_name,
+      date_of_birth: this.extractDateOfBirth(cleanedText),
+      address: address,
+      gender: this.extractGender(cleanedText)
     };
   }
 
@@ -146,151 +196,75 @@ class OCRService {
 
   // Pattern matching methods for Philippine driver's license
 
+  static extractNames(lines) {
+    let last_name = '';
+    let first_name = '';
+    let middle_name = '';
+
+    for (let line of lines) {
+      if (line.includes(',')) {
+        const parts = line.split(',');
+        last_name = parts[0].trim();
+        
+        let restOfName = parts.slice(1).join(',').trim();
+        // Remove any non-alphabetical garbage that might be clinging to the name
+        restOfName = restOfName.replace(/[^a-zA-Z\s\-]/g, ' ').replace(/\s+/g, ' ');
+        
+        const words = restOfName.split(/\s+/).filter(w => w.length > 0);
+        
+        if (words.length > 0) {
+          middle_name = words[words.length - 1]; // The last word of that line
+          first_name = words.slice(0, words.length - 1).join(' '); // Text between comma and middle name
+        }
+        break; // Once we find the comma line, we stop
+      }
+    }
+
+    return { last_name, first_name, middle_name };
+  }
+
   static extractLicenseNumber(text) {
-    const patterns = [
-      /([A-Z]\d{2}-\d{2}-\d{6})/g,
-      /LICENSE\s*NO\.?\s*:?\s*([A-Z0-9\-]{8,15})/gi,
-      /LIC\.?\s*NO\.?\s*:?\s*([A-Z0-9\-]{8,15})/gi,
-      /NO\.?\s*([A-Z]\d{2}-\d{2}-\d{6})/gi,
-      /([A-Z]\d{2}\s*-?\s*\d{2}\s*-?\s*\d{6})/gi,
-      /([A-Z0-9]{3,4}[-\s]\d{2}[-\s]\d{6})/gi
-    ];
-    
-    for (const pattern of patterns) {
-      const matches = text.match(pattern);
-      if (matches) {
-        for (const match of matches) {
-          const cleaned = match.replace(/[^A-Z0-9\-]/g, '');
-          if (cleaned.length >= 8) {
-            return cleaned;
-          }
-        }
-      }
-    }
-    return '';
-  }
-
-  static extractLastName(text) {
-    const patterns = [
-      /SURNAME\s*:?\s*([A-Z][A-Z\s]{2,30})/gi,
-      /LAST\s*NAME\s*:?\s*([A-Z][A-Z\s]{2,30})/gi,
-      /APELYIDO\s*:?\s*([A-Z][A-Z\s]{2,30})/gi,
-      /^([A-Z][A-Z\s]{2,30})\s*,/gmi,
-      /4b?\s*([A-Z][A-Z\s]{2,30})/gi
-    ];
-    
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match && match[1]) {
-        const name = match[1].trim();
-        if (name.length > 2 && name.length < 30) {
-          return name;
-        }
-      }
-    }
-    return '';
-  }
-
-  static extractFirstName(text) {
-    const patterns = [
-      /FIRST\s*NAME\s*:?\s*([A-Z][A-Z\s]{2,30})/gi,
-      /GIVEN\s*NAME\s*:?\s*([A-Z][A-Z\s]{2,30})/gi,
-      /PANGALAN\s*:?\s*([A-Z][A-Z\s]{2,30})/gi,
-      /,\s*([A-Z][A-Z\s]{2,30})/gi,
-      /\d+[A-Z]*\s+([A-Z][A-Z\s]{2,25})\s+[A-Z]/gi
-    ];
-    
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match && match[1]) {
-        const name = match[1].trim();
-        if (name.length > 2 && name.length < 30 && !name.includes('MALE') && !name.includes('FEMALE')) {
-          return name;
-        }
-      }
-    }
-    return '';
-  }
-
-  static extractMiddleName(text) {
-    const patterns = [
-      /MIDDLE\s*NAME\s*:?\s*([A-Z][A-Z\s]{1,20})/gi,
-      /M\.?I\.?\s*([A-Z][A-Z\s]{1,20})/gi,
-      /([A-Z]+)\s+([A-Z])\s+([A-Z]+)/gi
-    ];
-    
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match && match[1]) {
-        const name = match[1].trim();
-        if (name.length >= 1 && name.length < 20) {
-          return name;
-        }
-      }
-    }
-    return '';
+    // Extract the pattern [Letter][2 digits]-[2 digits]-[6 digits]
+    const pattern = /([A-Za-z]\d{2}-\d{2}-\d{6})/;
+    const match = text.match(pattern);
+    return match ? match[1].toUpperCase() : '';
   }
 
   static extractDateOfBirth(text) {
-    const patterns = [
-      /DOB\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi,
-      /BIRTH\s*DATE\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi,
-      /DATE\s*OF\s*BIRTH\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})/gi,
-      /(\d{1,2}\/\d{1,2}\/\d{4})/gi,
-      /(\d{1,2}-\d{1,2}-\d{4})/gi,
-      /19\d{2}|20\d{2}/gi
-    ];
-    
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match && match[0]) {
-        const dateStr = match[0];
-        try {
-          if (dateStr.includes('/') || dateStr.includes('-')) {
-            const separator = dateStr.includes('/') ? '/' : '-';
-            const parts = dateStr.split(separator);
-            if (parts.length === 3) {
-              const [part1, part2, part3] = parts;
-              const year = part3.length === 4 ? part3 : `20${part3}`;
-              const month = part1.padStart(2, '0');
-              const day = part2.padStart(2, '0');
-              return `${year}-${month}-${day}`;
-            }
-          }
-        } catch (error) {
-          console.error('Date parsing error:', error);
-        }
-      }
+    // Only extract text in the YYYY/MM/DD format. Ignore any other numbers.
+    const pattern = /(\d{4}\/\d{2}\/\d{2})/;
+    const match = text.match(pattern);
+    if (match) {
+      return match[1].replace(/\//g, '-'); // Format to YYYY-MM-DD for JSON structure
     }
     return '';
   }
 
   static extractAddress(text) {
-    const patterns = [
-      /ADDRESS\s*:?\s*([A-Z0-9\s,.#\-]{10,100})/gi,
-      /TIRAHAN\s*:?\s*([A-Z0-9\s,.#\-]{10,100})/gi,
-      /([A-Z0-9\s,.#\-]*(?:STREET|ST|AVENUE|AVE|ROAD|RD|BARANGAY|BRGY|CITY|PROVINCE)[A-Z0-9\s,.#\-]*)/gi,
-      /\d+\s+[A-Z][A-Z0-9\s,.#\-]{10,80}/gi
-    ];
+    // Extract the text block starting after "Address" and ending before known fields
+    const match = text.match(/Address\s*:?\s*(.*?)(?:License\s*No|Blood\s*Type|Weight|Height)/i);
+    let address = '';
     
-    for (const pattern of patterns) {
-      const match = text.match(pattern);
-      if (match && match[1]) {
-        const address = match[1].trim();
-        if (address.length > 10 && address.length < 100) {
-          return address;
-        }
+    if (match && match[1]) {
+      address = match[1];
+    } else {
+      // Fallback if bounds not found, look up to the license number pattern
+      const fallbackMatch = text.match(/Address\s*:?\s*(.*?)(?=\b[A-Za-z]\d{2}-\d{2}-\d{6}\b|$)/i);
+      if (fallbackMatch && fallbackMatch[1]) {
+        address = fallbackMatch[1];
       }
     }
-    return '';
+    
+    return address.replace(/[^a-zA-Z0-9\s,.-]/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
   static extractGender(text) {
-    const malePatterns = /\b(MALE|M|LALAKI)\b/gi;
-    const femalePatterns = /\b(FEMALE|F|BABAE)\b/gi;
-    
-    if (text.match(malePatterns)) return 'male';
-    if (text.match(femalePatterns)) return 'female';
+    // Look for a standalone "M" or "F"
+    // Using word boundaries \b to ensure it's standalone
+    const match = text.match(/\b(M|F)\b/i);
+    if (match) {
+      return match[1].toUpperCase() === 'M' ? 'male' : 'female';
+    }
     return '';
   }
 }
