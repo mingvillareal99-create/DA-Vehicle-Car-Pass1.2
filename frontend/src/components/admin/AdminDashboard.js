@@ -277,7 +277,7 @@ const AdminDashboard = () => {
             <div className="w-12 h-12 bg-[#38B000] rounded-full hidden items-center justify-center min-w-[48px]">
               <Building className="w-6 h-6 text-white" />
             </div>
-            <div className="ml-3 flex flex-col justify-center w-[160px] opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75">
+            <div className="ml-3 flex flex-col justify-center w-[160px] opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75 whitespace-nowrap overflow-hidden">
               <span className="font-bold text-white tracking-wide text-base leading-tight">
                 DA AgriPass
               </span>
