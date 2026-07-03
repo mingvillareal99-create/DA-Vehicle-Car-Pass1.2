@@ -102,7 +102,7 @@ const AdminDashboard = () => {
   const itemsPerPage = 20;
   
   // Auth context
-  const { user, isOnline } = useAuth();
+  const { user, isOnline, logout } = useAuth();
   const { toast } = useToast();
 
   /**
@@ -251,26 +251,40 @@ const AdminDashboard = () => {
       <div 
         className={`fixed md:static inset-y-0 left-0 z-50 flex flex-col bg-[#004B23] text-white transition-all duration-300 transform 
           ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'} 
-          w-64 md:w-20 md:hover:w-64 group shadow-xl md:shadow-none`}
+          w-64 md:w-20 md:hover:w-64 group shadow-xl md:shadow-none relative overflow-hidden`}
       >
+        {/* Background Image Layer */}
+        <div 
+          className="absolute z-0 bg-cover bg-left bg-no-repeat w-[125%] h-[125%] -top-[12.5%] left-0 origin-left scale-80"
+          style={{ backgroundImage: "url('/bg_gatepass.jpg')" }}
+        />
+        
+        {/* Dark Green Overlay */}
+        <div className="absolute inset-0 z-0 bg-[#004B23]/80 backdrop-blur-[1.5px]"></div>
+
         {/* Sidebar Header */}
-        <div className="flex items-center justify-between h-16 px-4 py-4 border-b border-[#38B000]/30">
+        <div className="flex items-center justify-between h-20 px-4 py-3 border-b border-[#38B000]/30 relative z-10">
           <div className="flex items-center overflow-hidden">
             <img 
               src={DA_LOGO_URL} 
               alt="DA Logo"
-              className="w-10 h-10 object-cover min-w-[40px] drop-shadow-md bg-white rounded-full p-1 border-2 border-[#FFD60A]"
+              className="w-12 h-12 object-cover min-w-[48px] drop-shadow-md bg-white rounded-full p-1"
               onError={(e) => {
                 e.target.style.display = 'none';
                 e.target.nextSibling.style.display = 'flex';
               }}
             />
-            <div className="w-10 h-10 bg-[#38B000] rounded-full hidden items-center justify-center min-w-[40px]">
-              <Building className="w-5 h-5 text-white" />
+            <div className="w-12 h-12 bg-[#38B000] rounded-full hidden items-center justify-center min-w-[48px]">
+              <Building className="w-6 h-6 text-white" />
             </div>
-            <span className="ml-3 font-bold text-white whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75 tracking-wide">
-              DA Bicol Region
-            </span>
+            <div className="ml-3 flex flex-col justify-center w-[160px] opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75">
+              <span className="font-bold text-white tracking-wide text-base leading-tight">
+                DA AgriPass
+              </span>
+              <span className="text-[10px] text-green-200 font-semibold leading-tight mt-1">
+                Department of Agriculture Region V
+              </span>
+            </div>
           </div>
           <Button variant="ghost" size="icon" className="md:hidden min-w-[40px] text-white hover:bg-[#38B000]/50" onClick={() => setIsMobileMenuOpen(false)}>
             <X className="w-5 h-5" />
@@ -278,7 +292,7 @@ const AdminDashboard = () => {
         </div>
 
         {/* Navigation Items */}
-        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-2 font-medium">
+        <div className="flex-1 overflow-y-auto py-4 px-3 space-y-2 font-medium relative z-10">
           {[
             { id: 'status', label: 'Vehicle Status', icon: Car },
             { id: 'overstaying', label: 'Overstaying', icon: Clock, color: 'text-[#FFD60A] hover:text-[#FFD60A]' },
@@ -309,7 +323,7 @@ const AdminDashboard = () => {
         </div>
 
         {/* Admin Profile & Logout */}
-        <div className="p-4 border-t border-[#38B000]/30 bg-[#004B23]">
+        <div className="p-4 border-t border-[#38B000]/30 bg-transparent relative z-10">
           <div className="flex flex-col space-y-4">
              <div className="flex items-center overflow-hidden px-1">
                <div className="w-10 h-10 min-w-[40px] bg-[#38B000] border-2 border-[#FFD60A] rounded-full flex items-center justify-center font-bold text-white text-lg shadow-md">
@@ -321,7 +335,7 @@ const AdminDashboard = () => {
                </div>
              </div>
              
-             <Button variant="outline" className="w-full justify-start text-white bg-transparent hover:bg-red-600 hover:text-white border-transparent hover:border-red-600 overflow-hidden px-3 h-10 transition-colors" onClick={() => window.location.href='/login'}>
+             <Button variant="outline" className="w-full justify-start text-white bg-transparent hover:bg-red-600 hover:text-white border-transparent hover:border-red-600 overflow-hidden px-3 h-10 transition-colors" onClick={logout}>
                <LogOut className="w-5 h-5 min-w-[20px] text-red-400 group-hover:text-white" />
                <span className="ml-3 whitespace-nowrap opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 delay-75 font-semibold">Log out</span>
              </Button>

@@ -59,7 +59,7 @@ const AppContent = () => {
           <div className="w-16 h-16 bg-green-600 rounded-full hidden items-center justify-center mx-auto mb-4">
             <Building className="w-8 h-8 text-white animate-pulse" />
           </div>
-          <p className="text-center text-gray-500 py-8">Loading DA Vehicle Gate Pass System...</p>
+          <p className="text-center text-gray-500 py-8">Loading DA AgriPass...</p>
         </div>
       </div>
     );
@@ -72,9 +72,9 @@ const AppContent = () => {
 
   // Authenticated - show main app
   return (
-    <div>
-      {/* Header - hidden during visitor registration flow */}
-      {!location.pathname.includes('/register') && (
+    <div className={user.role === 'admin' ? "h-screen overflow-hidden" : ""}>
+      {/* Header - hidden during visitor registration flow and for admin role */}
+      {!location.pathname.includes('/register') && user.role !== 'admin' && (
         <header className="bg-white shadow-sm border-b border-green-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex justify-between items-center h-16">
@@ -94,7 +94,7 @@ const AppContent = () => {
                 </div>
                 <div>
                   <h1 className="text-lg md:text-xl font-semibold text-gray-900">
-                    DA Vehicle Gate Pass System
+                    DA AgriPass
                   </h1>
                   <p className="text-xs text-gray-600">Department of Agriculture Region V</p>
                 </div>

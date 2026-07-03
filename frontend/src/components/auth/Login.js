@@ -85,7 +85,7 @@ const Login = () => {
 
           {/* Title */}
           <CardTitle className="text-3xl font-extrabold text-[#004B23] mb-2 tracking-tight">
-            DA Gate Pass System
+            DA AgriPass
           </CardTitle>
           <p className="text-gray-600 font-semibold tracking-wide">Department of Agriculture Region V</p>
           <p className="text-sm text-gray-500 mt-2">Sign in to access the vehicle monitoring system</p>
