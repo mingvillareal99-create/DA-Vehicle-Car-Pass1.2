@@ -79,6 +79,16 @@ const AdminDashboard = () => {
     }
   }, [isDarkMode]);
 
+  // Helper to format strings into Title Case (First Letter Capitalized)
+  const formatTitleCase = (str) => {
+    if (!str) return '';
+    return str
+      .toLowerCase()
+      .split(' ')
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  };
+
   // Dashboard data state
   const [stats, setStats] = useState({});
   const [vehicles, setVehicles] = useState([]);
@@ -1408,8 +1418,8 @@ const AdminDashboard = () => {
                           </div>
                         </td>
                         <td className="border border-gray-200 px-2 py-2 truncate">
-                          <div className="truncate" title={vehicle.owner_name}>
-                            {vehicle.owner_name}
+                          <div className="truncate" title={formatTitleCase(vehicle.owner_name)}>
+                            {formatTitleCase(vehicle.owner_name)}
                           </div>
                         </td>
                         <td className="border border-gray-200 px-2 py-2 truncate text-xs">
@@ -1485,7 +1495,7 @@ const AdminDashboard = () => {
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <p className="text-xs font-semibold text-gray-500 uppercase">Owner</p>
-                            <p className="font-medium">{selectedManageVehicle.owner_name}</p>
+                            <p className="font-medium">{formatTitleCase(selectedManageVehicle.owner_name)}</p>
                           </div>
                           <div>
                             <p className="text-xs font-semibold text-gray-500 uppercase">Type</p>

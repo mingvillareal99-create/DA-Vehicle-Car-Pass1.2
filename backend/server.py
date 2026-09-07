@@ -66,6 +66,11 @@ def convert_objectid_to_str(doc):
         return result
     return doc
 
+def format_title_case(name_str: str) -> str:
+    if not name_str:
+        return ""
+    return " ".join(word.capitalize() for word in str(name_str).strip().split())
+
 # Create the main app
 app = FastAPI(
     title="DA Vehicle Gate Pass System",
@@ -458,7 +463,7 @@ class VehicleRepository(BaseRepository):
             owner_info = da_str.get("owner", {})
             first_name = owner_info.get("first_name", "")
             family_name = owner_info.get("family_name", "")
-            owner_name = f"{first_name} {family_name}".strip() or "Unknown"
+            owner_name = format_title_case(f"{first_name} {family_name}".strip()) or "Unknown"
             
             plate_number_extracted = da_str.get("vehicle", {}).get("plate_number")
             return {
@@ -492,7 +497,7 @@ class VehicleRepository(BaseRepository):
             owner_info = da_str.get("owner", {})
             first_name = owner_info.get("first_name", "")
             family_name = owner_info.get("family_name", "")
-            owner_name = f"{first_name} {family_name}".strip() or "Unknown"
+            owner_name = format_title_case(f"{first_name} {family_name}".strip()) or "Unknown"
             
             plate_number_extracted = da_str.get("vehicle", {}).get("plate_number")
             plate_number = plate_number_extracted if plate_number_extracted else "UNKNOWN"
@@ -947,7 +952,7 @@ class DashboardService:
                 owner_info = da_str.get("owner", {})
                 first_name = owner_info.get("first_name", "")
                 family_name = owner_info.get("family_name", "")
-                owner_name = f"{first_name} {family_name}".strip() or "Unknown"
+                owner_name = format_title_case(f"{first_name} {family_name}".strip()) or "Unknown"
                 vehicles_dict[plate] = {
                     "id": str(da_doc.get("_id")),
                     "plate_number": plate,
@@ -1048,7 +1053,7 @@ class DashboardService:
                 dl = visitor.get('driver_license', {})
                 first_name = dl.get('first_name', '')
                 last_name = dl.get('last_name', '')
-                owner_name = f"{first_name} {last_name}".strip() or "Visitor"
+                owner_name = format_title_case(f"{first_name} {last_name}".strip()) or "Visitor"
                 vehicle_type_val = visitor.get('vehicle_type', 'private')
                 classification = "Visitor"
                 department = visitor.get('department_visiting')
@@ -1280,7 +1285,7 @@ async def get_entry_exit_logs(
             p = da.get('vehicle', {}).get('plate_number')
             if p and p not in meta_cache:
                 owner = da.get('owner', {})
-                name = f"{owner.get('first_name', '')} {owner.get('family_name', '')}".strip() or "DA Employee"
+                name = format_title_case(f"{owner.get('first_name', '')} {owner.get('family_name', '')}".strip()) or "DA Employee"
                 meta_cache[p] = {
                     'owner_name': name,
                     'vehicle_type': da.get('vehicle_type') or da.get('vehicle', {}).get('type') or VehicleType.PRIVATE.value
