@@ -1324,22 +1324,22 @@ const AdminDashboard = () => {
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <Label htmlFor="classification">Classification</Label>
+                          <Label htmlFor="classification">Status Of Employment</Label>
                           <Input
                             id="classification"
                             value={newVehicle.classification}
                             onChange={(e) => setNewVehicle({...newVehicle, classification: e.target.value})}
-                            placeholder="Government / Private / DA"
+                            placeholder="e.g. Permanent, Contract of Service"
                             className="mt-1"
                           />
                         </div>
                         <div>
-                          <Label htmlFor="department">Department</Label>
+                          <Label htmlFor="department">Classification</Label>
                           <Input
                             id="department"
                             value={newVehicle.department}
                             onChange={(e) => setNewVehicle({...newVehicle, department: e.target.value})}
-                            placeholder="Field Operations"
+                            placeholder="e.g. DA RFO 5 Employee/ Staff"
                             className="mt-1"
                           />
                         </div>
@@ -1413,13 +1413,13 @@ const AdminDashboard = () => {
                           </div>
                         </td>
                         <td className="border border-gray-200 px-2 py-2 truncate text-xs">
-                          <div className="truncate" title={vehicle.department || 'N/A'}>
-                            {vehicle.department || 'N/A'}
+                          <div className="truncate" title={vehicle.classification || 'N/A'}>
+                            {vehicle.classification || 'N/A'}
                           </div>
                         </td>
                         <td className="border border-gray-200 px-2 py-2 truncate text-xs">
-                          <div className="truncate" title={vehicle.classification || 'N/A'}>
-                            {vehicle.classification || 'N/A'}
+                          <div className="truncate" title={vehicle.department || 'N/A'}>
+                            {vehicle.department || 'N/A'}
                           </div>
                         </td>
                       </tr>
@@ -1500,11 +1500,11 @@ const AdminDashboard = () => {
                             <p className="font-medium">{selectedManageVehicle.color || 'Not Specified'}</p>
                           </div>
                           <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase">Classification</p>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Status Of Employment</p>
                             <p className="font-medium">{selectedManageVehicle.classification || 'Not Specified'}</p>
                           </div>
                           <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase">Department</p>
+                            <p className="text-xs font-semibold text-gray-500 uppercase">Classification</p>
                             <p className="font-medium">{selectedManageVehicle.department || 'Not Specified'}</p>
                           </div>
                         </div>
