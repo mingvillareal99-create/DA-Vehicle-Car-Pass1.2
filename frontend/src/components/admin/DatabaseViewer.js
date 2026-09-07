@@ -5,7 +5,9 @@
  */
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { format, parseISO } from 'date-fns';
 import { API } from '../../services/constants';
+import { useAuth } from '../../context/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -17,9 +19,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Database, Edit, Trash2, Search, RefreshCw } from "lucide-react";
 
 const DatabaseViewer = () => {
+  const { user } = useAuth();
+  const isSystemAdmin = user?.role === 'admin' || user?.role === 'system_administrator' || user?.role === 'System Administrator';
+
   // State management
   const [collections, setCollections] = useState({});
-  const [selectedCollection, setSelectedCollection] = useState('users');
+  const [selectedCollection, setSelectedCollection] = useState(isSystemAdmin ? 'users' : 'vehicles');
   const [documents, setDocuments] = useState([]);
   const [totalDocs, setTotalDocs] = useState(0);
   const [loading, setLoading] = useState(false);
@@ -39,10 +44,14 @@ const DatabaseViewer = () => {
   // Fetch documents when collection or page changes
   useEffect(() => {
     if (selectedCollection) {
+      if (selectedCollection === 'users' && !isSystemAdmin) {
+        setSelectedCollection('vehicles');
+        return;
+      }
       fetchDocuments();
     }
     // eslint-disable-next-line
-  }, [selectedCollection, page]);
+  }, [selectedCollection, page, isSystemAdmin]);
 
   /**
    * Fetch list of all collections and their counts
@@ -60,6 +69,9 @@ const DatabaseViewer = () => {
    * Fetch documents from selected collection with pagination
    */
   const fetchDocuments = async () => {
+    if (selectedCollection === 'users' && !isSystemAdmin) {
+      return;
+    }
     setLoading(true);
     try {
       const response = await axios.get(
@@ -125,14 +137,43 @@ const DatabaseViewer = () => {
    */
   const renderValue = (value, key) => {
     if (value === null || value === undefined) return 'null';
+
+    // Extract clean Driver License string in Visitor Registrations
+    if (key === 'driver_license') {
+      if (typeof value === 'object' && value !== null) {
+        return value.license_number || value.id || value.number || JSON.stringify(value);
+      }
+      if (typeof value === 'string') {
+        try {
+          const parsed = JSON.parse(value);
+          if (typeof parsed === 'object' && parsed !== null) {
+            return parsed.license_number || parsed.id || parsed.number || value;
+          }
+        } catch (e) {
+          return value;
+        }
+      }
+    }
+
+    // Format ISO Timestamps across all tables to MMM d, yyyy, h:mm a
+    const isDateKey = key && (key.endsWith('_at') || key.endsWith('_time') || key.endsWith('_date') || key === 'timestamp' || key === 'date_registered' || key === 'last_login');
+    const isIsoString = typeof value === 'string' && (value.includes('T') || isDateKey) && /^\d{4}-\d{2}-\d{2}/.test(value);
+    if (value instanceof Date || isIsoString) {
+      try {
+        const parsedDate = typeof value === 'string' ? parseISO(value) : value;
+        if (!isNaN(parsedDate.getTime())) {
+          return format(parsedDate, 'MMM d, yyyy, h:mm a');
+        }
+      } catch (e) {
+        // Fallback to string if parsing fails
+      }
+    }
+
     if (typeof value === 'boolean') return value.toString();
     if (typeof value === 'object') {
-      if (value instanceof Date || (typeof value === 'string' && value.includes('ISODate'))) {
-        return new Date(value).toLocaleString();
-      }
       return JSON.stringify(value, null, 2);
     }
-    // Mask password field
+    // Mask password field if encountered
     if (key === 'password') return '••••••••';
     return value.toString();
   };
@@ -215,6 +256,16 @@ const DatabaseViewer = () => {
     return JSON.stringify(doc).toLowerCase().includes(searchTerm.toLowerCase());
   });
 
+  // Get keys to display in table, excluding _id, id, and password
+  const getDisplayKeys = (doc) => {
+    if (selectedCollection === 'vehicles') {
+      return ['plate_number', 'vehicle_type', 'owner_name', 'status_of_employment', 'classification', 'is_active'];
+    }
+    return Object.keys(doc)
+      .filter(key => key !== '_id' && key !== 'id' && key !== 'password')
+      .slice(0, 6);
+  };
+
   return (
     <div className="space-y-6" data-testid="database-viewer">
       {/* Header with search */}
@@ -239,39 +290,41 @@ const DatabaseViewer = () => {
         </div>
       </div>
 
-      {/* Collection Cards */}
+      {/* Collection Cards (Users tab conditionally rendered for System Administrator only) */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        {Object.values(collections).map(collection => (
-          <Card 
-            key={collection.name}
-            className={`cursor-pointer transition-colors ${
-              selectedCollection === collection.name 
-                ? 'bg-green-50 border-green-300' 
-                : 'hover:bg-gray-50'
-            }`}
-            onClick={() => {
-              setSelectedCollection(collection.name);
-              setPage(0);
-            }}
-            data-testid={`collection-card-${collection.name}`}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-semibold capitalize">
-                    {collection.name.replace('_', ' ')}
-                  </h3>
-                  <p className="text-sm text-gray-600">{collection.count} documents</p>
+        {Object.values(collections)
+          .filter(collection => collection.name !== 'users' || isSystemAdmin)
+          .map(collection => (
+            <Card 
+              key={collection.name}
+              className={`cursor-pointer transition-colors ${
+                selectedCollection === collection.name 
+                  ? 'bg-green-50 border-green-300' 
+                  : 'hover:bg-gray-50'
+              }`}
+              onClick={() => {
+                setSelectedCollection(collection.name);
+                setPage(0);
+              }}
+              data-testid={`collection-card-${collection.name}`}
+            >
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="font-semibold capitalize">
+                      {collection.name.replace('_', ' ')}
+                    </h3>
+                    <p className="text-sm text-gray-600">{collection.count} documents</p>
+                  </div>
+                  <Database className="w-8 h-8 text-green-600" />
                 </div>
-                <Database className="w-8 h-8 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
-        ))}
+              </CardContent>
+            </Card>
+          ))}
       </div>
 
       {/* Document Table */}
-      {selectedCollection && (
+      {selectedCollection && (selectedCollection !== 'users' || isSystemAdmin) && (
         <Card>
           <CardHeader>
             <div className="flex items-center justify-between">
@@ -300,56 +353,30 @@ const DatabaseViewer = () => {
                   <table className="w-full border-collapse border border-gray-200">
                     <thead>
                       <tr className="bg-gray-50">
-                        {selectedCollection !== 'vehicles' && (
-                          <th className="border border-gray-200 px-4 py-2 text-left">ID</th>
-                        )}
-                        {filteredDocuments[0] && (() => {
-                          if (selectedCollection === 'vehicles') {
-                            return ['plate_number', 'vehicle_type', 'owner_name', 'status_of_employment', 'classification', 'is_active'].map(key => (
-                              <th key={key} className="border border-gray-200 px-4 py-2 text-left capitalize">
-                                {key.replace(/_/g, ' ')}
-                              </th>
-                            ));
-                          }
-                          return Object.keys(filteredDocuments[0])
-                            .filter(key => key !== '_id' && key !== 'id')
-                            .slice(0, 5)
-                            .map(key => (
-                              <th key={key} className="border border-gray-200 px-4 py-2 text-left capitalize">
-                                {key.replace(/_/g, ' ')}
-                              </th>
-                            ));
-                        })()}
+                        {filteredDocuments[0] && getDisplayKeys(filteredDocuments[0]).map(key => (
+                          <th key={key} className="border border-gray-200 px-4 py-2 text-left capitalize">
+                            {key.replace(/_/g, ' ')}
+                          </th>
+                        ))}
                         <th className="border border-gray-200 px-4 py-2 text-left">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredDocuments.map(doc => (
                         <tr key={doc._id || doc.id} className="hover:bg-gray-50">
-                          {selectedCollection !== 'vehicles' && (
-                            <td className="border border-gray-200 px-4 py-2 font-mono text-xs">
-                              {doc.id?.substring(0, 8) || doc._id?.substring(0, 8)}...
-                            </td>
-                          )}
-                          {(() => {
-                            const keys = selectedCollection === 'vehicles' 
-                              ? ['plate_number', 'vehicle_type', 'owner_name', 'status_of_employment', 'classification', 'is_active']
-                              : Object.keys(doc).filter(key => key !== '_id' && key !== 'id').slice(0, 5);
-                              
-                            return keys.map(key => {
-                              let val = doc[key];
-                              if (selectedCollection === 'vehicles' && key === 'is_active' && typeof val === 'boolean') {
-                                val = val ? 'Yes' : 'No';
-                              }
-                              return (
-                                <td key={key} className="border border-gray-200 px-4 py-2 max-w-xs">
-                                  <div className="truncate" title={renderValue(val, key)}>
-                                    {renderValue(val, key)}
-                                  </div>
-                                </td>
-                              );
-                            });
-                          })()}
+                          {getDisplayKeys(doc).map(key => {
+                            let val = doc[key];
+                            if (selectedCollection === 'vehicles' && key === 'is_active' && typeof val === 'boolean') {
+                              val = val ? 'Yes' : 'No';
+                            }
+                            return (
+                              <td key={key} className="border border-gray-200 px-4 py-2 max-w-xs">
+                                <div className="truncate" title={renderValue(val, key)}>
+                                  {renderValue(val, key)}
+                                </div>
+                              </td>
+                            );
+                          })}
                           <td className="border border-gray-200 px-4 py-2">
                             <div className="flex items-center space-x-2">
                               <Button

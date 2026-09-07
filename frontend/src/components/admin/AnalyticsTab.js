@@ -291,19 +291,26 @@ const AnalyticsTab = ({ logs = [], vehicles = [] }) => {
           </CardHeader>
           <CardContent>
             <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={activityData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
-                  <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} dx={-10} />
-                  <RechartsTooltip 
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
-                  />
-                  <Legend wrapperStyle={{ paddingTop: '20px' }} />
-                  <Line type="monotone" dataKey="entries" name="Entries" stroke="#10b981" strokeWidth={3} activeDot={{ r: 6 }} />
-                  <Line type="monotone" dataKey="exits" name="Exits" stroke="#ef4444" strokeWidth={3} activeDot={{ r: 6 }} />
-                </LineChart>
-              </ResponsiveContainer>
+              {activityData.some(d => d.entries > 0 || d.exits > 0) ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={activityData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#E5E7EB" />
+                    <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} dy={10} />
+                    <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#6B7280' }} dx={-10} />
+                    <RechartsTooltip 
+                      contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}
+                    />
+                    <Legend wrapperStyle={{ paddingTop: '20px' }} />
+                    <Line type="monotone" dataKey="entries" name="Entries" stroke="#10b981" strokeWidth={3} activeDot={{ r: 6 }} />
+                    <Line type="monotone" dataKey="exits" name="Exits" stroke="#ef4444" strokeWidth={3} activeDot={{ r: 6 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-gray-400 py-12">
+                  <BarChart2 className="w-10 h-10 mb-2 stroke-1 opacity-50" />
+                  <p className="text-sm font-medium">No Data Available for Selected Range</p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -340,7 +347,10 @@ const AnalyticsTab = ({ logs = [], vehicles = [] }) => {
                             </PieChart>
                         </ResponsiveContainer>
                     ) : (
-                        <div className="h-full flex items-center justify-center text-gray-400 text-sm">No data available</div>
+                        <div className="h-full flex flex-col items-center justify-center text-gray-400 py-6">
+                          <PieChartIcon className="w-8 h-8 mb-1 stroke-1 opacity-50" />
+                          <p className="text-xs font-medium">No Data Available for Selected Range</p>
+                        </div>
                     )}
                     </div>
                 </CardContent>
@@ -370,7 +380,10 @@ const AnalyticsTab = ({ logs = [], vehicles = [] }) => {
                             </BarChart>
                         </ResponsiveContainer>
                     ) : (
-                         <div className="h-full flex items-center justify-center text-gray-400 text-sm">No data available</div>
+                        <div className="h-full flex flex-col items-center justify-center text-gray-400 py-6">
+                          <BarChart2 className="w-8 h-8 mb-1 stroke-1 opacity-50" />
+                          <p className="text-xs font-medium">No Data Available for Selected Range</p>
+                        </div>
                     )}
                     </div>
                 </CardContent>

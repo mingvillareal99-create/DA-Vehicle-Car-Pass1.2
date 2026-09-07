@@ -201,6 +201,8 @@ class EntryExitLog(BaseEntity):
     entry_time: Optional[datetime] = None  # For tracking duration
     exit_time: Optional[datetime] = None
     registration_type: Optional[RegistrationType] = None
+    owner_name: Optional[str] = None
+    vehicle_type: Optional[str] = None
 
 class EntryExitLogCreate(BaseModel):
     plate_number: str
@@ -218,6 +220,20 @@ class VehicleStatus(BaseModel):
     duration_hours: Optional[float] = None
     is_overstaying: bool = False
     registration_type: Optional[RegistrationType] = None
+    owner_name: Optional[str] = None
+    vehicle_type: Optional[str] = None
+    brand: Optional[str] = None
+    color: Optional[str] = None
+    classification: Optional[str] = None
+    department: Optional[str] = None
+    purpose_of_visit: Optional[str] = None
+    department_visiting: Optional[str] = None
+    has_active_ticket: bool = False
+    ticket_id: Optional[str] = None
+    ticket_status: Optional[str] = None
+    ticket_number: Optional[str] = None
+    travel_order_number: Optional[str] = None
+    travel_end_date: Optional[datetime] = None
 
 class SyncData(BaseModel):
     """Model for syncing offline data"""
@@ -373,9 +389,11 @@ class BarcodeService:
     """Service for barcode generation"""
     
     @staticmethod
-    def generate_barcode_data(registration: VisitorRegistration) -> str:
-        """Generate barcode data for visitor registration"""
-        return registration.plate_number
+    async def generate_barcode_data(registration: VisitorRegistration) -> str:
+        """Generate barcode data for visitor registration as sequential six-digit serial number starting at 000001"""
+        count = await db.visitor_registrations.count_documents({})
+        serial_number = str(count + 1).zfill(6)
+        return serial_number
 
 # Repository Classes (Data Access Layer)
 class BaseRepository(ABC):
@@ -446,7 +464,7 @@ class VehicleRepository(BaseRepository):
             return {
                 "id": str(da_doc.get("_id")),
                 "plate_number": plate_number_extracted if plate_number_extracted else plate_number,
-                "vehicle_type": VehicleType.DA_GOVERNMENT.value, # Defaulting imported vehicles to da_government
+                "vehicle_type": da_str.get("vehicle_type") or da_str.get("vehicle", {}).get("type") or VehicleType.PRIVATE.value,
                 "owner_name": owner_name,
                 "department": da_str.get("employment", {}).get("classification"),
                 "brand": da_str.get("vehicle", {}).get("brand"),
@@ -482,7 +500,7 @@ class VehicleRepository(BaseRepository):
             vehicles.append({
                 "id": str(da_doc.get("_id")),
                 "plate_number": plate_number,
-                "vehicle_type": VehicleType.DA_GOVERNMENT.value,
+                "vehicle_type": da_str.get("vehicle_type") or da_str.get("vehicle", {}).get("type") or VehicleType.PRIVATE.value,
                 "owner_name": owner_name,
                 "department": da_str.get("employment", {}).get("classification"),
                 "brand": da_str.get("vehicle", {}).get("brand"),
@@ -756,7 +774,7 @@ class VisitorRegistrationService:
         )
         
         # Generate barcode data
-        visitor_registration.barcode_data = self.barcode_service.generate_barcode_data(visitor_registration)
+        visitor_registration.barcode_data = await self.barcode_service.generate_barcode_data(visitor_registration)
         
         # Save to database
         await self.visitor_repo.create(visitor_registration.dict())
@@ -838,6 +856,9 @@ class ScanService:
         action = LogAction.EXIT if is_inside else LogAction.ENTRY
         
         # Create log entry
+        owner_name = vehicle_info.get("owner_name") if vehicle_info else None
+        v_type = vehicle_info.get("vehicle_type") if vehicle_info else None
+        
         log_data = {
             "plate_number": scan_data.plate_number,
             "action": action,
@@ -845,7 +866,9 @@ class ScanService:
             "guard_username": guard_username,
             "is_inside": not is_inside,
             "timestamp": self.datetime_service.now_pht(),
-            "registration_type": registration_type
+            "registration_type": registration_type,
+            "owner_name": owner_name,
+            "vehicle_type": v_type
         }
         
         if action == LogAction.ENTRY:
@@ -906,7 +929,7 @@ class DashboardService:
         # Batch fetch all vehicles and visitors to avoid N+1 queries
         all_plate_numbers = [item['latest_log']['plate_number'] for item in inside_vehicles]
         
-        # Fetch all matching vehicles in one query
+        # 1. Fetch all matching standard vehicles
         vehicles_cursor = self.vehicle_repo.collection.find({
             'plate_number': {'$in': all_plate_numbers},
             'is_active': True
@@ -914,67 +937,176 @@ class DashboardService:
         vehicles_list = await vehicles_cursor.to_list(1000)
         vehicles_dict = {v['plate_number']: convert_objectid_to_str(v) for v in vehicles_list}
         
-        # Fetch all matching visitors in one query
+        # 2. Fetch all matching da-registrations
+        da_cursor = db["da-registrations"].find({'vehicle.plate_number': {'$in': all_plate_numbers}})
+        da_list = await da_cursor.to_list(1000)
+        for da_doc in da_list:
+            da_str = convert_objectid_to_str(da_doc)
+            plate = da_str.get("vehicle", {}).get("plate_number")
+            if plate and plate not in vehicles_dict:
+                owner_info = da_str.get("owner", {})
+                first_name = owner_info.get("first_name", "")
+                family_name = owner_info.get("family_name", "")
+                owner_name = f"{first_name} {family_name}".strip() or "Unknown"
+                vehicles_dict[plate] = {
+                    "id": str(da_doc.get("_id")),
+                    "plate_number": plate,
+                    "vehicle_type": da_str.get("vehicle_type") or da_str.get("vehicle", {}).get("type") or VehicleType.PRIVATE.value,
+                    "owner_name": owner_name,
+                    "department": da_str.get("employment", {}).get("classification"),
+                    "brand": da_str.get("vehicle", {}).get("brand"),
+                    "color": da_str.get("vehicle", {}).get("color"),
+                    "classification": da_str.get("employment", {}).get("status"),
+                    "is_active": True,
+                    "registration_type": RegistrationType.PERMANENT.value
+                }
+        
+        # 3. Fetch all matching visitors (even if expired, for complete profile)
         visitors_cursor = self.visitor_repo.collection.find({
-            'plate_number': {'$in': all_plate_numbers},
-            'is_active': True,
-            'expires_at': {'$gt': current_time}
+            'plate_number': {'$in': all_plate_numbers}
         })
         visitors_list = await visitors_cursor.to_list(1000)
         visitors_dict = {v['plate_number']: convert_objectid_to_str(v) for v in visitors_list}
         
+        # 4. Fetch all active overstaying tickets
+        tickets_cursor = db.overstaying_tickets.find({
+            'plate_number': {'$in': all_plate_numbers},
+            'status': {'$ne': TicketStatus.RESOLVED.value}
+        })
+        tickets_list = await tickets_cursor.to_list(1000)
+        tickets_dict = {t['plate_number']: convert_objectid_to_str(t) for t in tickets_list}
+        
         for item in inside_vehicles:
             log = item['latest_log']
+            plate = log['plate_number']
             
-            # Lookup from pre-fetched dictionaries (O(1) instead of database query)
-            vehicle = vehicles_dict.get(log['plate_number'])
-            visitor = visitors_dict.get(log['plate_number'])
+            vehicle = vehicles_dict.get(plate)
+            visitor = visitors_dict.get(plate)
+            ticket = tickets_dict.get(plate)
             
-            vehicle_info = vehicle or visitor
-            
-            if vehicle_info:
-                entry_time = log.get('entry_time')
-                duration_hours = None
-                is_overstaying = False
-                registration_type = log.get('registration_type', RegistrationType.PERMANENT)
+            registration_type = log.get('registration_type', RegistrationType.PERMANENT)
+            if visitor and registration_type != RegistrationType.PERMANENT:
+                registration_type = RegistrationType.VISITOR
                 
-                if entry_time and isinstance(entry_time, datetime):
-                    entry_time = self.datetime_service.ensure_timezone_aware(entry_time)
-                    duration_hours = self.datetime_service.calculate_duration_hours(entry_time, current_time)
-                    
-                    # Check overstaying for applicable vehicles (8 hours limit)
-                    applicable_types = [VehicleType.PRIVATE, VehicleType.PUBLIC, VehicleType.GOVERNMENT]
-                    if vehicle_info.get('vehicle_type') in applicable_types and duration_hours > 8:
-                        is_overstaying = True
-                    
-                    # Check overstaying for expired visitors
-                    if registration_type == RegistrationType.VISITOR and visitor:
-                        expires_at = visitor.get('expires_at')
-                        if expires_at:
-                            if isinstance(expires_at, str):
-                                expires_at = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
-                            expires_at = self.datetime_service.ensure_timezone_aware(expires_at)
-                            if current_time > expires_at:
-                                is_overstaying = True
+            entry_time = log.get('entry_time')
+            duration_hours = None
+            is_overstaying = False
+            
+            if entry_time and isinstance(entry_time, datetime):
+                entry_time = self.datetime_service.ensure_timezone_aware(entry_time)
+                duration_hours = self.datetime_service.calculate_duration_hours(entry_time, current_time)
                 
-                status_list.append(VehicleStatus(
-                    plate_number=log['plate_number'],
-                    is_inside=True,
-                    entry_time=entry_time,
-                    duration_hours=duration_hours,
-                    is_overstaying=is_overstaying,
-                    registration_type=registration_type
-                ))
+                # Check overstaying for applicable vehicles (8 hours limit)
+                v_type = vehicle.get('vehicle_type') if vehicle else (visitor.get('vehicle_type') if visitor else None)
+                applicable_types = [VehicleType.PRIVATE, VehicleType.PUBLIC, VehicleType.GOVERNMENT]
+                if v_type in applicable_types and duration_hours > 8:
+                    is_overstaying = True
+                
+                # Check overstaying for expired visitors
+                if registration_type == RegistrationType.VISITOR and visitor:
+                    expires_at = visitor.get('expires_at')
+                    if expires_at:
+                        if isinstance(expires_at, str):
+                            expires_at = datetime.fromisoformat(expires_at.replace('Z', '+00:00'))
+                        expires_at = self.datetime_service.ensure_timezone_aware(expires_at)
+                        if current_time > expires_at:
+                            is_overstaying = True
+            
+            # Ticket override & exception handling
+            has_active_ticket = False
+            ticket_id = None
+            ticket_status = None
+            ticket_number = None
+            travel_order_num = None
+            travel_end = None
+            
+            if ticket:
+                has_active_ticket = True
+                ticket_id = ticket.get('id')
+                ticket_status = ticket.get('status')
+                ticket_number = ticket.get('ticket_number')
+                travel_order_num = ticket.get('travel_order_number')
+                travel_end = ticket.get('travel_end_date')
+                
+                if ticket_status == TicketStatus.OVERSTAYING.value:
+                    is_overstaying = True
+                elif ticket_status == TicketStatus.ON_TRAVEL.value:
+                    # Authorized travel order exempts from normal overstaying
+                    is_overstaying = False
+            
+            # Extract detailed attributes
+            owner_name = None
+            vehicle_type_val = None
+            brand = None
+            color = None
+            classification = None
+            department = None
+            purpose = None
+            visiting_dept = None
+            
+            if visitor and registration_type == RegistrationType.VISITOR:
+                dl = visitor.get('driver_license', {})
+                first_name = dl.get('first_name', '')
+                last_name = dl.get('last_name', '')
+                owner_name = f"{first_name} {last_name}".strip() or "Visitor"
+                vehicle_type_val = visitor.get('vehicle_type', 'private')
+                classification = "Visitor"
+                department = visitor.get('department_visiting')
+                purpose = visitor.get('purpose_of_visit')
+                visiting_dept = visitor.get('department_visiting')
+            elif vehicle:
+                owner_name = vehicle.get('owner_name')
+                vehicle_type_val = vehicle.get('vehicle_type')
+                brand = vehicle.get('brand')
+                color = vehicle.get('color')
+                classification = vehicle.get('classification')
+                department = vehicle.get('department')
+            elif ticket:
+                owner_name = ticket.get('owner_name')
+                vehicle_type_val = ticket.get('vehicle_type')
+                purpose = ticket.get('purpose_of_visit')
+            
+            status_list.append(VehicleStatus(
+                plate_number=plate,
+                is_inside=True,
+                entry_time=entry_time,
+                duration_hours=duration_hours,
+                is_overstaying=is_overstaying,
+                registration_type=registration_type,
+                owner_name=owner_name,
+                vehicle_type=vehicle_type_val,
+                brand=brand,
+                color=color,
+                classification=classification,
+                department=department,
+                purpose_of_visit=purpose,
+                department_visiting=visiting_dept,
+                has_active_ticket=has_active_ticket,
+                ticket_id=ticket_id,
+                ticket_status=ticket_status,
+                ticket_number=ticket_number,
+                travel_order_number=travel_order_num,
+                travel_end_date=travel_end
+            ))
         
         # Sort consistently by entry time (newest entries at top)
-        # Use fallback of 0 timestamp for None entry_times to prevent exceptions
         status_list.sort(key=lambda x: x.entry_time.timestamp() if x.entry_time else 0, reverse=True)
         
         return status_list
     
     async def get_dashboard_stats(self) -> Dict:
-        # Get today's logs count
-        today_logs = await self.log_repo.count_today()
+        today = DateTimeService.now_pht().replace(hour=0, minute=0, second=0, microsecond=0)
+        tomorrow = today + timedelta(days=1)
+        
+        today_entries = await self.log_repo.collection.count_documents({
+            "timestamp": {"$gte": today, "$lt": tomorrow},
+            "action": LogAction.ENTRY.value
+        })
+        today_exits = await self.log_repo.collection.count_documents({
+            "timestamp": {"$gte": today, "$lt": tomorrow},
+            "action": LogAction.EXIT.value
+        })
+        today_logs = today_entries + today_exits
         
         # Get total permanent vehicles
         total_vehicles = len(await self.vehicle_repo.find_all_active())
@@ -986,15 +1118,25 @@ class DashboardService:
         vehicle_status = await self.get_vehicle_status()
         inside_count = len(vehicle_status)
         
-        # Get overstaying vehicles
-        overstaying_count = sum(1 for status in vehicle_status if status.is_overstaying)
+        # Breakdown inside
+        inside_permanent = sum(1 for s in vehicle_status if s.registration_type != RegistrationType.VISITOR)
+        inside_visitors = sum(1 for s in vehicle_status if s.registration_type == RegistrationType.VISITOR)
+        
+        # Get overstaying vehicles and on_travel count
+        overstaying_count = sum(1 for status in vehicle_status if status.is_overstaying and status.ticket_status != TicketStatus.ON_TRAVEL.value)
+        on_travel_count = sum(1 for status in vehicle_status if status.ticket_status == TicketStatus.ON_TRAVEL.value)
         
         return {
+            "today_entries": today_entries,
+            "today_exits": today_exits,
             "today_entries_exits": today_logs,
             "total_vehicles": total_vehicles,
             "total_visitors": total_visitors,
             "vehicles_inside": inside_count,
-            "overstaying_vehicles": overstaying_count
+            "inside_permanent": inside_permanent,
+            "inside_visitors": inside_visitors,
+            "overstaying_vehicles": overstaying_count,
+            "on_travel_vehicles": on_travel_count
         }
 
 class SyncService:
@@ -1116,10 +1258,57 @@ async def get_entry_exit_logs(
 ):
     log_repo = EntryExitLogRepository()
     logs = await log_repo.find_all(limit, plate_number)
+    
+    # Pre-fetch plate details for logs missing owner_name or vehicle_type
+    missing_plates = list({log['plate_number'] for log in logs if not log.get('owner_name') or not log.get('vehicle_type')})
+    meta_cache = {}
+    
+    if missing_plates:
+        # Standard vehicles
+        v_cursor = db.vehicles.find({'plate_number': {'$in': missing_plates}, 'is_active': True})
+        v_list = await v_cursor.to_list(1000)
+        for v in v_list:
+            meta_cache[v['plate_number']] = {
+                'owner_name': v.get('owner_name'),
+                'vehicle_type': v.get('vehicle_type')
+            }
+            
+        # DA registrations
+        da_cursor = db["da-registrations"].find({'vehicle.plate_number': {'$in': missing_plates}})
+        da_list = await da_cursor.to_list(1000)
+        for da in da_list:
+            p = da.get('vehicle', {}).get('plate_number')
+            if p and p not in meta_cache:
+                owner = da.get('owner', {})
+                name = f"{owner.get('first_name', '')} {owner.get('family_name', '')}".strip() or "DA Employee"
+                meta_cache[p] = {
+                    'owner_name': name,
+                    'vehicle_type': da.get('vehicle_type') or da.get('vehicle', {}).get('type') or VehicleType.PRIVATE.value
+                }
+                
+        # Visitors
+        vis_cursor = db.visitor_registrations.find({'plate_number': {'$in': missing_plates}})
+        vis_list = await vis_cursor.to_list(1000)
+        for vis in vis_list:
+            p = vis.get('plate_number')
+            if p and p not in meta_cache:
+                dl = vis.get('driver_license', {})
+                name = f"{dl.get('first_name', '')} {dl.get('last_name', '')}".strip() or "Visitor"
+                meta_cache[p] = {
+                    'owner_name': name,
+                    'vehicle_type': vis.get('vehicle_type', 'private')
+                }
+                
     import logging
     valid_logs = []
     for log in logs:
         try:
+            p = log.get('plate_number')
+            if p in meta_cache:
+                if not log.get('owner_name'):
+                    log['owner_name'] = meta_cache[p]['owner_name']
+                if not log.get('vehicle_type'):
+                    log['vehicle_type'] = meta_cache[p]['vehicle_type']
             valid_logs.append(EntryExitLog(**log))
         except Exception as e:
             logging.warning(f"Failed to parse log record {log.get('id')}: {e}")
@@ -1459,7 +1648,7 @@ async def create_ticket(ticket_req: ManualTicketCreate):
         gender = dl.get("gender")
         address = dl.get("address")
     elif p_info:
-        vehicle_type = p_info.get("vehicle_type", "da_government")
+        vehicle_type = p_info.get("vehicle_type", "private")
         owner_name = p_info.get("owner_name", "Unknown")
         
     new_ticket = OverstayingTicket(
@@ -1682,7 +1871,7 @@ async def monitor_overstaying():
                                 gender = dl.get("gender")
                                 address = dl.get("address")
                             elif p_info:
-                                vehicle_type = p_info.get("vehicle_type", "da_government")
+                                vehicle_type = p_info.get("vehicle_type", "private")
                                 owner_name = p_info.get("owner_name", "Unknown")
                             
                             new_ticket = OverstayingTicket(

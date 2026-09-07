@@ -7,6 +7,17 @@ import { jsPDF } from 'jspdf';
 
 class BarcodeGenerator {
   /**
+   * Format a numerical counter or raw string into a sequential six-digit serial number with leading zeros starting at 000001
+   * @param {number|string} number - Sequence number or raw string
+   * @returns {string} - Six-digit formatted serial string (e.g., "000001")
+   */
+  static formatSerialNumber(number) {
+    const parsed = parseInt(number, 10);
+    const num = isNaN(parsed) || parsed < 1 ? 1 : parsed;
+    return String(num).padStart(6, '0');
+  }
+
+  /**
    * Generate a barcode image as a data URL
    * @param {string} text - The text to encode in the barcode
    * @returns {string} - Base64 data URL of the barcode image
