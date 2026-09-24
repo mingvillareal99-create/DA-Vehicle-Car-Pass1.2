@@ -15,6 +15,8 @@ import AnalyticsTab from './AnalyticsTab';
 import OverstayingKanbanBoard from './OverstayingKanbanBoard';
 import ResolutionModal from './ResolutionModal';
 import TicketDetailModal from './TicketDetailModal';
+import BarcodeGenerator from '../../services/BarcodeService';
+import GatePassSticker from '../common/GatePassSticker';
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
@@ -58,10 +60,16 @@ import {
   FileCheck,
   Ticket,
   CheckCircle,
-  Calendar,
+  Mail,
+  Phone,
   MapPin,
+  Briefcase,
+  Tag,
+  Calendar,
   Info,
-  ArrowUpRight
+  ArrowUpRight,
+  Printer,
+  Download
 } from "lucide-react";
 
 const AdminDashboard = () => {
@@ -129,7 +137,11 @@ const AdminDashboard = () => {
     department: '',
     brand: '',
     color: '',
-    classification: ''
+    classification: '',
+    address: '',
+    email: '',
+    mobile: '',
+    vehicle_category: 'Car'
   });
   
   // Vehicle management state
@@ -137,7 +149,55 @@ const AdminDashboard = () => {
   const [isManageVehicleModalOpen, setIsManageVehicleModalOpen] = useState(false);
   const [isAddVehicleModalOpen, setIsAddVehicleModalOpen] = useState(false);
   const [vehiclePage, setVehiclePage] = useState(1);
+  const [editVehicleData, setEditVehicleData] = useState({});
+  const [isSavingVehicle, setIsSavingVehicle] = useState(false);
+  const [activeVehicleModalTab, setActiveVehicleModalTab] = useState('view');
   const itemsPerPage = 20;
+
+  // Sync edit form state when selectedManageVehicle changes
+  useEffect(() => {
+    if (selectedManageVehicle) {
+      setEditVehicleData({
+        owner_name: selectedManageVehicle.owner_name || '',
+        address: selectedManageVehicle.address || '',
+        classification: selectedManageVehicle.classification || '',
+        department: selectedManageVehicle.department || '',
+        email: selectedManageVehicle.email || '',
+        mobile: selectedManageVehicle.mobile || '',
+        vehicle_category: selectedManageVehicle.vehicle_category || (selectedManageVehicle.brand && selectedManageVehicle.brand.toLowerCase().includes('yamaha') ? 'Motorcycle' : 'Car'),
+        vehicle_type: selectedManageVehicle.vehicle_type || 'private',
+        brand: selectedManageVehicle.brand || '',
+        color: selectedManageVehicle.color || ''
+      });
+      setActiveVehicleModalTab('view');
+    }
+  }, [selectedManageVehicle]);
+
+  const handleUpdateVehicleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedManageVehicle) return;
+    setIsSavingVehicle(true);
+    try {
+      const id = selectedManageVehicle.id || selectedManageVehicle.plate_number;
+      await axios.put(`${API}/vehicles/${encodeURIComponent(id)}`, editVehicleData);
+      toast({
+        title: 'Vehicle Updated',
+        description: `Vehicle ${selectedManageVehicle.plate_number} details updated successfully.`
+      });
+      setIsManageVehicleModalOpen(false);
+      setSelectedManageVehicle(null);
+      fetchDashboardData();
+    } catch (error) {
+      console.error('Error updating vehicle:', error);
+      toast({
+        title: 'Update Failed',
+        description: error.response?.data?.detail || 'Could not update vehicle details',
+        variant: 'destructive'
+      });
+    } finally {
+      setIsSavingVehicle(false);
+    }
+  };
   
   // Auth context
   const { user, isOnline, logout } = useAuth();
@@ -263,7 +323,11 @@ const AdminDashboard = () => {
         department: '',
         brand: '',
         color: '',
-        classification: ''
+        classification: '',
+        address: '',
+        email: '',
+        mobile: '',
+        vehicle_category: 'Car'
       });
       setIsAddVehicleModalOpen(false);
       fetchDashboardData();
@@ -303,11 +367,10 @@ const AdminDashboard = () => {
       if (!updatedData || !updatedData.id) return;
       const payload = { ...updatedData };
       
-      // If setting status to active and it's already physically expired, extend it to end of current day
-      if (payload.is_active !== false && new Date(payload.expires_at) <= new Date()) {
-        const endOfDay = new Date();
-        endOfDay.setHours(23, 59, 59, 999);
-        payload.expires_at = endOfDay.toISOString();
+      // If setting status to active and it's already physically expired or empty, extend it 24 hours
+      if (payload.is_active !== false && (!payload.expires_at || new Date(payload.expires_at) <= new Date())) {
+        const future24h = new Date(Date.now() + 24 * 60 * 60 * 1000);
+        payload.expires_at = future24h.toISOString();
       }
 
       await axios.put(`${API}/database/visitor_registrations/${updatedData.id}`, payload);
@@ -1275,99 +1338,197 @@ const AdminDashboard = () => {
                       Add Vehicle
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[500px]">
+                  <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
-                      <DialogTitle>Add New Permanent Vehicle</DialogTitle>
+                      <DialogTitle className="text-xl text-green-700 flex items-center justify-between">
+                        <span className="flex items-center">
+                          <Car className="w-5 h-5 mr-2" />
+                          Add New Vehicle
+                        </span>
+                        {newVehicle.plate_number && (
+                          <Badge className="bg-green-700 text-white font-mono text-base px-3 py-1 uppercase">
+                            {newVehicle.plate_number}
+                          </Badge>
+                        )}
+                      </DialogTitle>
                     </DialogHeader>
-                    <form onSubmit={handleCreateVehicle} className="space-y-4 py-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="plate_number">Plate Number *</Label>
-                          <Input
-                            id="plate_number"
-                            value={newVehicle.plate_number}
-                            onChange={(e) => setNewVehicle({...newVehicle, plate_number: e.target.value})}
-                            placeholder="ABC-1234"
-                            className="font-mono mt-1"
-                            required
-                          />
-                        </div>
-                        <div>
-                          <Label>Vehicle Type *</Label>
-                          <Select 
-                            value={newVehicle.vehicle_type} 
-                            onValueChange={(value) => setNewVehicle({...newVehicle, vehicle_type: value})}
-                          >
-                            <SelectTrigger className="mt-1">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="da_government">DA Government Vehicle</SelectItem>
-                              <SelectItem value="government">Government Vehicle</SelectItem>
-                              <SelectItem value="public">Public Vehicle</SelectItem>
-                              <SelectItem value="private">Private Vehicle</SelectItem>
-                            </SelectContent>
-                          </Select>
+
+                    <form onSubmit={handleCreateVehicle} className="space-y-4 mt-2">
+                      {/* Live Barcode & Pass Sticker Preview */}
+                      <div className="bg-gradient-to-b from-gray-50 to-gray-100 border-2 border-dashed border-gray-300 rounded-2xl p-4 text-center shadow-sm flex flex-col items-center justify-center">
+                        <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">
+                          Official DA Gate Pass Sticker Preview
+                        </p>
+                        <GatePassSticker plateNumber={newVehicle.plate_number || 'SAMPLE-123'} width={290} height={290} />
+                      </div>
+
+                      {/* Section 1: Owner's Information */}
+                      <div className="border rounded-lg p-4 bg-white shadow-sm space-y-3">
+                        <h4 className="text-sm font-bold text-green-800 flex items-center border-b pb-2">
+                          <User className="w-4 h-4 mr-2 text-green-600" />
+                          Owner's Information
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <Label htmlFor="add_owner_name">Owner Name *</Label>
+                            <Input
+                              id="add_owner_name"
+                              value={newVehicle.owner_name}
+                              onChange={(e) => setNewVehicle({...newVehicle, owner_name: e.target.value})}
+                              placeholder="e.g. Juan Dela Cruz"
+                              className="mt-1"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="add_address">Address</Label>
+                            <Input
+                              id="add_address"
+                              value={newVehicle.address}
+                              onChange={(e) => setNewVehicle({...newVehicle, address: e.target.value})}
+                              placeholder="Complete Address"
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="add_classification">Status Of Employment</Label>
+                            <Input
+                              id="add_classification"
+                              value={newVehicle.classification}
+                              onChange={(e) => setNewVehicle({...newVehicle, classification: e.target.value})}
+                              placeholder="e.g. Permanent, Contract of Service"
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="add_department">Classification</Label>
+                            <Input
+                              id="add_department"
+                              value={newVehicle.department}
+                              onChange={(e) => setNewVehicle({...newVehicle, department: e.target.value})}
+                              placeholder="e.g. DA RFO 5 Employee/ Staff"
+                              className="mt-1"
+                            />
+                          </div>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="brand">Brand</Label>
-                          <Input
-                            id="brand"
-                            value={newVehicle.brand}
-                            onChange={(e) => setNewVehicle({...newVehicle, brand: e.target.value})}
-                            placeholder="e.g. Toyota, Honda"
-                            className="mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="color">Color</Label>
-                          <Input
-                            id="color"
-                            value={newVehicle.color}
-                            onChange={(e) => setNewVehicle({...newVehicle, color: e.target.value})}
-                            placeholder="e.g. White, Black"
-                            className="mt-1"
-                          />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor="classification">Status Of Employment</Label>
-                          <Input
-                            id="classification"
-                            value={newVehicle.classification}
-                            onChange={(e) => setNewVehicle({...newVehicle, classification: e.target.value})}
-                            placeholder="e.g. Permanent, Contract of Service"
-                            className="mt-1"
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="department">Classification</Label>
-                          <Input
-                            id="department"
-                            value={newVehicle.department}
-                            onChange={(e) => setNewVehicle({...newVehicle, department: e.target.value})}
-                            placeholder="e.g. DA RFO 5 Employee/ Staff"
-                            className="mt-1"
-                          />
+
+                      {/* Section 2: Contact Informations */}
+                      <div className="border rounded-lg p-4 bg-white shadow-sm space-y-3">
+                        <h4 className="text-sm font-bold text-green-800 flex items-center border-b pb-2">
+                          <Phone className="w-4 h-4 mr-2 text-green-600" />
+                          Contact Informations
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <Label htmlFor="add_email">Email Address</Label>
+                            <Input
+                              id="add_email"
+                              type="email"
+                              value={newVehicle.email}
+                              onChange={(e) => setNewVehicle({...newVehicle, email: e.target.value})}
+                              placeholder="name@email.com"
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="add_mobile">Mobile Number</Label>
+                            <Input
+                              id="add_mobile"
+                              value={newVehicle.mobile}
+                              onChange={(e) => setNewVehicle({...newVehicle, mobile: e.target.value})}
+                              placeholder="09171234567"
+                              className="mt-1"
+                            />
+                          </div>
                         </div>
                       </div>
-                      <div>
-                        <Label htmlFor="owner_name">Owner Name *</Label>
-                        <Input
-                          id="owner_name"
-                          value={newVehicle.owner_name}
-                          onChange={(e) => setNewVehicle({...newVehicle, owner_name: e.target.value})}
-                          placeholder="Juan Dela Cruz"
-                          className="mt-1"
-                          required
-                        />
+
+                      {/* Section 3: Vehicle Informations */}
+                      <div className="border rounded-lg p-4 bg-white shadow-sm space-y-3">
+                        <h4 className="text-sm font-bold text-green-800 flex items-center border-b pb-2">
+                          <Car className="w-4 h-4 mr-2 text-green-600" />
+                          Vehicle Informations
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <Label htmlFor="add_plate_number">Plate Number *</Label>
+                            <Input
+                              id="add_plate_number"
+                              value={newVehicle.plate_number}
+                              onChange={(e) => setNewVehicle({...newVehicle, plate_number: e.target.value.toUpperCase()})}
+                              placeholder="ABC-1234"
+                              className="font-mono mt-1 uppercase"
+                              required
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="add_vehicle_category">Vehicle Category</Label>
+                            <Select 
+                              value={newVehicle.vehicle_category} 
+                              onValueChange={(value) => setNewVehicle({...newVehicle, vehicle_category: value})}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue placeholder="Select Category" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Car">Car</SelectItem>
+                                <SelectItem value="Motorcycle">Motorcycle</SelectItem>
+                                <SelectItem value="SUV">SUV</SelectItem>
+                                <SelectItem value="Tricycle">Tricycle</SelectItem>
+                                <SelectItem value="Van">Van</SelectItem>
+                                <SelectItem value="Truck">Truck</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label>Vehicle Type *</Label>
+                            <Select 
+                              value={newVehicle.vehicle_type} 
+                              onValueChange={(value) => setNewVehicle({...newVehicle, vehicle_type: value})}
+                            >
+                              <SelectTrigger className="mt-1">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="private">Private Vehicle</SelectItem>
+                                <SelectItem value="da_government">DA Government Vehicle</SelectItem>
+                                <SelectItem value="government">Government Vehicle</SelectItem>
+                                <SelectItem value="public">Public Vehicle</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label htmlFor="add_brand">Brand</Label>
+                            <Input
+                              id="add_brand"
+                              value={newVehicle.brand}
+                              onChange={(e) => setNewVehicle({...newVehicle, brand: e.target.value})}
+                              placeholder="e.g. Toyota, Honda, Yamaha"
+                              className="mt-1"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="add_color">Color</Label>
+                            <Input
+                              id="add_color"
+                              value={newVehicle.color}
+                              onChange={(e) => setNewVehicle({...newVehicle, color: e.target.value})}
+                              placeholder="e.g. White, Black, Red"
+                              className="mt-1"
+                            />
+                          </div>
+                        </div>
                       </div>
-                      <Button type="submit" className="w-full bg-green-600 hover:bg-green-700 mt-4">
-                        Save Vehicle
-                      </Button>
+
+                      <div className="flex justify-end space-x-3 pt-2">
+                        <Button type="button" variant="outline" onClick={() => setIsAddVehicleModalOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button type="submit" className="bg-green-600 hover:bg-green-700">
+                          Save Vehicle
+                        </Button>
+                      </div>
                     </form>
                   </DialogContent>
                 </Dialog>
@@ -1478,47 +1639,303 @@ const AdminDashboard = () => {
                     setIsManageVehicleModalOpen(val);
                     if (!val) setSelectedManageVehicle(null);
                   }}>
-                    <DialogContent className="sm:max-w-[450px]">
+                    <DialogContent className="sm:max-w-[650px] max-h-[90vh] overflow-y-auto">
                       <DialogHeader>
-                        <DialogTitle className="text-xl text-green-700 flex items-center">
-                          <Car className="w-5 h-5 mr-2" />
-                          Vehicle Details
+                        <DialogTitle className="text-xl text-green-700 flex items-center justify-between">
+                          <span className="flex items-center">
+                            <Car className="w-5 h-5 mr-2" />
+                            Vehicle Pass & Details
+                          </span>
+                          <Badge className="bg-green-700 text-white font-mono text-base px-3 py-1">
+                            {selectedManageVehicle.plate_number}
+                          </Badge>
                         </DialogTitle>
                       </DialogHeader>
-                      <div className="space-y-4 mt-2">
-                        <div className="flexjustify-between items-center mb-4 border-b pb-4">
-                          <div>
-                            <p className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Plate Number</p>
-                            <Badge className="text-lg px-3 py-1 mt-1 bg-green-600">{selectedManageVehicle.plate_number}</Badge>
+
+                      <Tabs value={activeVehicleModalTab} onValueChange={setActiveVehicleModalTab} className="w-full mt-2">
+                        <TabsList className="grid w-full grid-cols-2 mb-4">
+                          <TabsTrigger value="view" className="flex items-center">
+                            <Eye className="w-4 h-4 mr-2" /> View Details
+                          </TabsTrigger>
+                          <TabsTrigger value="edit" className="flex items-center">
+                            <Edit className="w-4 h-4 mr-2" /> Edit Details
+                          </TabsTrigger>
+                        </TabsList>
+
+                        {/* View Details Tab */}
+                        <TabsContent value="view" className="space-y-5">
+                          {/* Official DA Gate Pass Sticker Badge with Dynamic Barcode */}
+                          <div className="bg-gradient-to-b from-gray-50 to-gray-100 border-2 border-dashed border-gray-300 rounded-2xl p-4 text-center shadow-sm flex flex-col items-center justify-center">
+                            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wider mb-3">
+                              Official DA Gate Pass Sticker
+                            </p>
+                            <GatePassSticker plateNumber={selectedManageVehicle.plate_number} width={310} height={310} />
+                            <div className="flex gap-2 mt-3">
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700 text-white font-medium shadow-sm"
+                                onClick={() => BarcodeGenerator.printSticker(selectedManageVehicle.plate_number)}
+                              >
+                                <Printer className="w-3.5 h-3.5 mr-1.5" />
+                                Print Sticker
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="border-gray-300 text-gray-700 font-medium"
+                                onClick={() => BarcodeGenerator.downloadStickerPDF(selectedManageVehicle.plate_number)}
+                              >
+                                <Download className="w-3.5 h-3.5 mr-1.5" />
+                                Download PDF
+                              </Button>
+                            </div>
                           </div>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase">Owner</p>
-                            <p className="font-medium">{formatTitleCase(selectedManageVehicle.owner_name)}</p>
+
+                          {/* Section 1: Owner's Information */}
+                          <div className="border rounded-lg p-4 bg-white shadow-sm space-y-3">
+                            <h4 className="text-sm font-bold text-green-800 flex items-center border-b pb-2">
+                              <User className="w-4 h-4 mr-2 text-green-600" />
+                              Owner's Information
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <p className="text-xs font-medium text-gray-500 uppercase">Owner Name</p>
+                                <p className="font-semibold text-gray-900">{formatTitleCase(selectedManageVehicle.owner_name)}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-gray-500 uppercase">Address</p>
+                                <p className="font-medium text-gray-800 truncate" title={selectedManageVehicle.address || 'DA Region V, Pili, Camarines Sur'}>
+                                  {selectedManageVehicle.address || 'DA Region V, Pili, Camarines Sur'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-gray-500 uppercase">Status Of Employment</p>
+                                <Badge variant="outline" className="mt-0.5 border-green-600 text-green-700 bg-green-50">
+                                  {selectedManageVehicle.classification || 'N/A'}
+                                </Badge>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-gray-500 uppercase">Classification</p>
+                                <p className="font-medium text-gray-800">{selectedManageVehicle.department || 'N/A'}</p>
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase">Type</p>
-                            <p className="font-medium capitalize">{selectedManageVehicle.vehicle_type}</p>
+
+                          {/* Section 2: Contact Informations */}
+                          <div className="border rounded-lg p-4 bg-white shadow-sm space-y-3">
+                            <h4 className="text-sm font-bold text-green-800 flex items-center border-b pb-2">
+                              <Phone className="w-4 h-4 mr-2 text-green-600" />
+                              Contact Informations
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <p className="text-xs font-medium text-gray-500 uppercase">Email Address</p>
+                                <p className="font-medium text-gray-800 truncate" title={selectedManageVehicle.email || 'N/A'}>
+                                  {selectedManageVehicle.email || 'N/A'}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-gray-500 uppercase">Mobile Number</p>
+                                <p className="font-medium text-gray-800">
+                                  {selectedManageVehicle.mobile || 'N/A'}
+                                </p>
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase">Brand</p>
-                            <p className="font-medium">{selectedManageVehicle.brand || 'Not Specified'}</p>
+
+                          {/* Section 3: Vehicle Informations */}
+                          <div className="border rounded-lg p-4 bg-white shadow-sm space-y-3">
+                            <h4 className="text-sm font-bold text-green-800 flex items-center border-b pb-2">
+                              <Car className="w-4 h-4 mr-2 text-green-600" />
+                              Vehicle Informations
+                            </h4>
+                            <div className="grid grid-cols-2 gap-3 text-sm">
+                              <div>
+                                <p className="text-xs font-medium text-gray-500 uppercase">Vehicle Category</p>
+                                <Badge variant="secondary" className="mt-0.5 capitalize">
+                                  {selectedManageVehicle.vehicle_category || (selectedManageVehicle.brand && selectedManageVehicle.brand.toLowerCase().includes('yamaha') ? 'Motorcycle' : 'Car')}
+                                </Badge>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-gray-500 uppercase">Vehicle Type</p>
+                                <p className="font-medium text-gray-800 capitalize">
+                                  {selectedManageVehicle.vehicle_type === 'private' ? 'Private Vehicle' : (selectedManageVehicle.vehicle_type === 'da_government' ? 'DA Government Vehicle' : selectedManageVehicle.vehicle_type?.replace('_', ' '))}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-gray-500 uppercase">Brand</p>
+                                <p className="font-medium text-gray-800 capitalize">{selectedManageVehicle.brand || 'Not Specified'}</p>
+                              </div>
+                              <div>
+                                <p className="text-xs font-medium text-gray-500 uppercase">Color</p>
+                                <p className="font-medium text-gray-800 capitalize">{selectedManageVehicle.color || 'Not Specified'}</p>
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase">Color</p>
-                            <p className="font-medium">{selectedManageVehicle.color || 'Not Specified'}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase">Status Of Employment</p>
-                            <p className="font-medium">{selectedManageVehicle.classification || 'Not Specified'}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold text-gray-500 uppercase">Classification</p>
-                            <p className="font-medium">{selectedManageVehicle.department || 'Not Specified'}</p>
-                          </div>
-                        </div>
-                      </div>
+                        </TabsContent>
+
+                        {/* Edit Details Tab */}
+                        <TabsContent value="edit">
+                          <form onSubmit={handleUpdateVehicleSubmit} className="space-y-4">
+                            {/* Owner Info Section */}
+                            <div className="border rounded-lg p-4 bg-white shadow-sm space-y-3">
+                              <h4 className="text-sm font-bold text-green-800 flex items-center border-b pb-2">
+                                <User className="w-4 h-4 mr-2 text-green-600" />
+                                Owner's Information
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                  <Label htmlFor="edit_owner_name">Owner Name *</Label>
+                                  <Input 
+                                    id="edit_owner_name"
+                                    value={editVehicleData.owner_name}
+                                    onChange={(e) => setEditVehicleData({...editVehicleData, owner_name: e.target.value})}
+                                    placeholder="e.g. Juan De La Cruz"
+                                    className="mt-1"
+                                    required
+                                  />
+                                </div>
+                                <div>
+                                  <Label htmlFor="edit_address">Address</Label>
+                                  <Input 
+                                    id="edit_address"
+                                    value={editVehicleData.address}
+                                    onChange={(e) => setEditVehicleData({...editVehicleData, address: e.target.value})}
+                                    placeholder="Complete Address"
+                                    className="mt-1"
+                                  />
+                                </div>
+                                <div>
+                                  <Label htmlFor="edit_classification">Status Of Employment</Label>
+                                  <Input 
+                                    id="edit_classification"
+                                    value={editVehicleData.classification}
+                                    onChange={(e) => setEditVehicleData({...editVehicleData, classification: e.target.value})}
+                                    placeholder="Permanent / Contract of Service / Job Order"
+                                    className="mt-1"
+                                  />
+                                </div>
+                                <div>
+                                  <Label htmlFor="edit_department">Classification</Label>
+                                  <Input 
+                                    id="edit_department"
+                                    value={editVehicleData.department}
+                                    onChange={(e) => setEditVehicleData({...editVehicleData, department: e.target.value})}
+                                    placeholder="DA RFO 5 Employee/ Staff"
+                                    className="mt-1"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Contact Info Section */}
+                            <div className="border rounded-lg p-4 bg-white shadow-sm space-y-3">
+                              <h4 className="text-sm font-bold text-green-800 flex items-center border-b pb-2">
+                                <Phone className="w-4 h-4 mr-2 text-green-600" />
+                                Contact Informations
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                  <Label htmlFor="edit_email">Email Address</Label>
+                                  <Input 
+                                    id="edit_email"
+                                    type="email"
+                                    value={editVehicleData.email}
+                                    onChange={(e) => setEditVehicleData({...editVehicleData, email: e.target.value})}
+                                    placeholder="name@email.com"
+                                    className="mt-1"
+                                  />
+                                </div>
+                                <div>
+                                  <Label htmlFor="edit_mobile">Mobile Number</Label>
+                                  <Input 
+                                    id="edit_mobile"
+                                    value={editVehicleData.mobile}
+                                    onChange={(e) => setEditVehicleData({...editVehicleData, mobile: e.target.value})}
+                                    placeholder="09171234567"
+                                    className="mt-1"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Vehicle Info Section */}
+                            <div className="border rounded-lg p-4 bg-white shadow-sm space-y-3">
+                              <h4 className="text-sm font-bold text-green-800 flex items-center border-b pb-2">
+                                <Car className="w-4 h-4 mr-2 text-green-600" />
+                                Vehicle Informations
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                <div>
+                                  <Label htmlFor="edit_vehicle_category">Vehicle Category</Label>
+                                  <Select 
+                                    value={editVehicleData.vehicle_category}
+                                    onValueChange={(val) => setEditVehicleData({...editVehicleData, vehicle_category: val})}
+                                  >
+                                    <SelectTrigger className="mt-1">
+                                      <SelectValue placeholder="Select Category" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="Car">Car</SelectItem>
+                                      <SelectItem value="Motorcycle">Motorcycle</SelectItem>
+                                      <SelectItem value="SUV">SUV</SelectItem>
+                                      <SelectItem value="Tricycle">Tricycle</SelectItem>
+                                      <SelectItem value="Van">Van</SelectItem>
+                                      <SelectItem value="Truck">Truck</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <Label htmlFor="edit_vehicle_type">Vehicle Type</Label>
+                                  <Select 
+                                    value={editVehicleData.vehicle_type}
+                                    onValueChange={(val) => setEditVehicleData({...editVehicleData, vehicle_type: val})}
+                                  >
+                                    <SelectTrigger className="mt-1">
+                                      <SelectValue placeholder="Select Type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="private">Private Vehicle</SelectItem>
+                                      <SelectItem value="da_government">DA Government Vehicle</SelectItem>
+                                      <SelectItem value="government">Government Vehicle</SelectItem>
+                                      <SelectItem value="public">Public Vehicle</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <Label htmlFor="edit_brand">Brand</Label>
+                                  <Input 
+                                    id="edit_brand"
+                                    value={editVehicleData.brand}
+                                    onChange={(e) => setEditVehicleData({...editVehicleData, brand: e.target.value})}
+                                    placeholder="e.g. Toyota, Honda, Yamaha"
+                                    className="mt-1"
+                                  />
+                                </div>
+                                <div>
+                                  <Label htmlFor="edit_color">Color</Label>
+                                  <Input 
+                                    id="edit_color"
+                                    value={editVehicleData.color}
+                                    onChange={(e) => setEditVehicleData({...editVehicleData, color: e.target.value})}
+                                    placeholder="e.g. White, Black, Red"
+                                    className="mt-1"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="flex justify-end space-x-3 pt-2">
+                              <Button type="button" variant="outline" onClick={() => setIsManageVehicleModalOpen(false)}>
+                                Cancel
+                              </Button>
+                              <Button type="submit" className="bg-green-600 hover:bg-green-700" disabled={isSavingVehicle}>
+                                {isSavingVehicle ? 'Saving...' : 'Save Changes'}
+                              </Button>
+                            </div>
+                          </form>
+                        </TabsContent>
+                      </Tabs>
                     </DialogContent>
                   </Dialog>
                 )}

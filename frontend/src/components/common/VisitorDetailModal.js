@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react';
 import JsBarcode from 'jsbarcode';
 import BarcodeGenerator from '../../services/BarcodeService';
+import GatePassSticker from './GatePassSticker';
 import { BACKEND_URL } from '../../services/constants';
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -13,7 +14,7 @@ import { Badge } from "../ui/badge";
 import { Input } from "../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
-import { Eye, Camera, CreditCard, Calendar, MapPin, Download, X, Edit3, Save } from "lucide-react";
+import { Eye, Camera, CreditCard, Calendar, MapPin, Download, Printer, X, Edit3, Save } from "lucide-react";
 
 const VisitorDetailModal = ({ visitor, isOpen, onClose, onSave, defaultEditMode = false }) => {
   const [isPhotoExpanded, setIsPhotoExpanded] = useState(false);
@@ -315,29 +316,23 @@ const VisitorDetailModal = ({ visitor, isOpen, onClose, onSave, defaultEditMode 
             </CardContent>
           </Card>
 
-          {/* Barcode Section */}
+          {/* Official Gate Pass Sticker Section */}
           <Card>
             <CardHeader className="pb-3">
-              <CardTitle className="text-lg text-green-600">Access Barcode</CardTitle>
+              <CardTitle className="text-lg text-green-600">Official DA Gate Pass Sticker</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center">
-                <div className="bg-white border-2 border-gray-200 rounded-lg p-4 mb-4 inline-block">
-                  <canvas 
-                    ref={(canvas) => {
-                      if (canvas && editedData.barcode_data) {
-                        JsBarcode(canvas, editedData.barcode_data, {
-                          format: 'CODE128',
-                          width: 2,
-                          height: 60,
-                          displayValue: true,
-                          fontSize: 12
-                        });
-                      }
-                    }}
+              <div className="flex flex-col items-center justify-center text-center">
+                <div className="bg-gradient-to-b from-gray-50 to-gray-100 border-2 border-dashed border-gray-300 rounded-2xl p-4 mb-3 inline-block shadow-sm">
+                  <GatePassSticker 
+                    plateNumber={editedData.plate_number || editedData.barcode_data || 'SAMPLE-123'} 
+                    width={290} 
+                    height={290} 
                   />
                 </div>
-                <p className="text-sm text-gray-600">Barcode Data: {editedData.barcode_data}</p>
+                <p className="text-xs text-gray-500 font-mono">
+                  Barcode Data: <span className="font-bold text-gray-800">{editedData.barcode_data || editedData.plate_number}</span>
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -364,19 +359,21 @@ const VisitorDetailModal = ({ visitor, isOpen, onClose, onSave, defaultEditMode 
             </Button>
           )}
           <Button
-            onClick={() => {
-              const pdf = BarcodeGenerator.generatePDF(
-                editedData.plate_number,
-                editedData.barcode_data,
-                editedData.expires_at
-              );
-              pdf.save(`${editedData.plate_number}_visitor_pass.pdf`);
-            }}
-            className="bg-blue-600 hover:bg-blue-700"
+            onClick={() => BarcodeGenerator.printSticker(editedData.plate_number || editedData.barcode_data)}
+            className="bg-green-600 hover:bg-green-700 text-white font-semibold"
+            data-testid="print-pass-btn"
+          >
+            <Printer className="w-4 h-4 mr-2" />
+            Print Sticker
+          </Button>
+          <Button
+            onClick={() => BarcodeGenerator.downloadStickerPDF(editedData.plate_number || editedData.barcode_data)}
+            variant="outline"
+            className="border-gray-300 text-gray-700 font-semibold"
             data-testid="download-pass-btn"
           >
             <Download className="w-4 h-4 mr-2" />
-            Download Pass
+            Download PDF
           </Button>
           <Button variant="outline" onClick={onClose} data-testid="close-modal-btn">
             Close

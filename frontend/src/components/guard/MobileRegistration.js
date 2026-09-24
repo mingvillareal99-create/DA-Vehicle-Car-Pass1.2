@@ -11,6 +11,7 @@ import { useAuth } from '../../context/AuthContext';
 import { API, DA_LOGO_URL } from '../../services/constants';
 import OCRService from '../../services/OCRService';
 import BarcodeGenerator from '../../services/BarcodeService';
+import GatePassSticker from '../common/GatePassSticker';
 import { OfflineStorageManager } from '../../services/OfflineService';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
@@ -26,6 +27,7 @@ import {
   UserPlus,
   CheckCircle,
   Download,
+  Printer,
   RefreshCw,
   Eye,
   EyeOff
@@ -193,12 +195,22 @@ const MobileRegistration = () => {
       if (isOnline) {
         // Submit to server
         const response = await axios.post(`${API}/visitor-registration`, registrationData);
-        setRegistrationResult(response.data);
+        const resultData = {
+          ...response.data,
+          plate_number: response.data.plate_number || registrationData.plate_number,
+          barcode_data: registrationData.plate_number || response.data.barcode_data
+        };
+        setRegistrationResult(resultData);
         setMessage({ type: 'success', text: 'Visitor registered successfully!' });
         setStep(4);
       } else {
         // Store offline for later sync
         await OfflineStorageManager.storeOfflineData('/visitor-registration', registrationData);
+        setRegistrationResult({
+          ...registrationData,
+          barcode_data: registrationData.plate_number,
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+        });
         setMessage({
           type: 'success',
           text: 'Registration stored offline. Will sync when online.'
@@ -226,36 +238,21 @@ const MobileRegistration = () => {
   };
 
   /**
-   * Download barcode PDF for printing utilizing the official DA RFO V Sticker layout
+   * Print official gate pass sticker directly to connected label printer
+   */
+  const handlePrint = () => {
+    if (!registrationResult) return;
+    const cleanPlate = (registrationResult.plate_number || registrationResult.barcode_data || '').toUpperCase().trim();
+    BarcodeGenerator.printSticker(cleanPlate);
+  };
+
+  /**
+   * Download official gate pass sticker PDF sized for 3x3 / 4x4 label printing
    */
   const downloadBarcode = async () => {
     if (!registrationResult) return;
-    
-    try {
-      // Find the hidden sticker container
-      const stickerElement = document.getElementById('sticker-render-target');
-      if (stickerElement) {
-        const canvas = await html2canvas(stickerElement, { 
-          scale: 4, // High density for waterproof 3x2 printing
-          useCORS: true,
-          backgroundColor: null 
-        });
-        
-        const imgData = canvas.toDataURL('image/png');
-        
-        // 3x2 inches landscape
-        const pdf = new jsPDF({
-          orientation: 'landscape',
-          unit: 'in',
-          format: [3, 2]
-        });
-        
-        pdf.addImage(imgData, 'PNG', 0, 0, 3, 2);
-        pdf.save(`DA_Sticker_${registrationResult.plate_number}.pdf`);
-      }
-    } catch (e) {
-      console.error("Failed to generate precise sticker PDF", e);
-    }
+    const cleanPlate = (registrationResult.plate_number || registrationResult.barcode_data || '').toUpperCase().trim();
+    await BarcodeGenerator.downloadStickerPDF(cleanPlate);
   };
 
   /**
@@ -677,31 +674,38 @@ const MobileRegistration = () => {
                   </p>
                 </div>
 
-                {/* Barcode display */}
-                <div className="text-center">
-                  <div className="bg-white border-2 border-gray-200 rounded-lg p-4 mb-4">
-                    <canvas
-                      ref={(canvas) => {
-                        if (canvas && registrationResult.barcode_data) {
-                          JsBarcode(canvas, registrationResult.barcode_data, {
-                            format: 'CODE128',
-                            width: 2,
-                            height: 60,
-                            displayValue: true
-                          });
-                        }
-                      }}
+                {/* Official DA Gate Pass Sticker Badge */}
+                <div className="flex flex-col items-center justify-center text-center">
+                  <div className="bg-gradient-to-b from-gray-50 to-gray-100 border-2 border-dashed border-gray-300 rounded-2xl p-4 mb-3 inline-block shadow-sm">
+                    <GatePassSticker 
+                      plateNumber={registrationResult.plate_number || registrationResult.barcode_data || 'SAMPLE-123'} 
+                      width={280} 
+                      height={280} 
                     />
                   </div>
+                  <p className="text-xs text-gray-500 font-mono mb-4">
+                    Barcode Data: <span className="font-bold text-gray-800">{registrationResult.plate_number || registrationResult.barcode_data}</span>
+                  </p>
 
-                  <Button
-                    onClick={downloadBarcode}
-                    className="w-full bg-green-600 hover:bg-green-700 mb-3"
-                    data-testid="download-barcode-btn"
-                  >
-                    <Download className="w-4 h-4 mr-2" />
-                    Download Barcode PDF
-                  </Button>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full mb-3">
+                    <Button
+                      onClick={handlePrint}
+                      className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold shadow-sm"
+                      data-testid="print-sticker-btn"
+                    >
+                      <Printer className="w-4 h-4 mr-2" />
+                      Print Gate Pass Sticker
+                    </Button>
+                    <Button
+                      onClick={downloadBarcode}
+                      variant="outline"
+                      className="w-full border-green-600 text-green-700 hover:bg-green-50 font-semibold"
+                      data-testid="download-barcode-btn"
+                    >
+                      <Download className="w-4 h-4 mr-2" />
+                      Download PDF
+                    </Button>
+                  </div>
                 </div>
               </div>
             )}
@@ -724,107 +728,6 @@ const MobileRegistration = () => {
                 Back to Dashboard
               </Button>
             </div>
-            
-            {/* BEAUTIFUL PREMIUM DA STICKER DESIGN */}
-            {registrationResult && registrationResult.barcode_data && (
-              <div style={{ position: 'absolute', top: '-9999px', left: '-9999px' }}>
-                <div 
-                  id="sticker-render-target"
-                  style={{
-                    width: '3in',
-                    height: '2in',
-                    backgroundColor: '#ffffff',
-                    position: 'relative',
-                    fontFamily: '"Inter", "Segoe UI", Arial, sans-serif',
-                    overflow: 'hidden',
-                    border: '2px solid #064e3b',
-                    boxSizing: 'border-box'
-                  }}
-                >
-                  {/* Premium Header Strip */}
-                  <div style={{
-                    background: 'linear-gradient(135deg, #059669 0%, #064e3b 100%)',
-                    height: '52px',
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '0 8px',
-                    boxSizing: 'border-box',
-                    borderBottom: '4px solid #fbbf24'
-                  }}>
-                    <img src="/Bicol_Region_Logo.png" alt="Bicol" style={{ height: '36px', width: '36px', objectFit: 'contain' }} crossOrigin="anonymous" />
-                    
-                    <div style={{ textAlign: 'center', flex: 1, padding: '0 5px' }}>
-                      <div style={{ color: '#ffffff', fontSize: '7pt', letterSpacing: '0.8px', opacity: 0.95, lineHeight: 1, marginBottom: '2px', fontWeight: '600' }}>
-                        DEPARTMENT OF AGRICULTURE
-                      </div>
-                      <div style={{ color: '#fbbf24', fontSize: '11pt', fontWeight: '900', letterSpacing: '1px', lineHeight: 1 }}>
-                        VEHICLE PASS
-                      </div>
-                    </div>
-
-                    <img src={DA_LOGO_URL} alt="DA Logo" style={{ height: '36px', width: '36px', objectFit: 'cover', borderRadius: '50%' }} crossOrigin="anonymous" />
-                  </div>
-
-                  {/* Main Body (High Contrast for Scanning) */}
-                  <div style={{
-                    height: 'calc(100% - 52px - 20px)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    backgroundColor: '#ffffff'
-                  }}>
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '0 10px', height: '48px', marginTop: '4px' }}>
-                      <canvas 
-                        ref={(canvas) => {
-                          if (canvas && registrationResult.barcode_data) {
-                            JsBarcode(canvas, registrationResult.barcode_data, {
-                              format: 'CODE128',
-                              width: 1.8,
-                              height: 48,
-                              displayValue: false,
-                              margin: 0,
-                              lineColor: '#111827'
-                            });
-                          }
-                        }}
-                      />
-                    </div>
-                    
-                    {/* Plate Number incredibly prominent */}
-                    <div style={{
-                      color: '#064e3b',
-                      fontWeight: '900',
-                      fontSize: '20pt',
-                      letterSpacing: '2.5px',
-                      marginTop: '4px',
-                      fontFamily: '"Arial Black", "Segoe UI Black", Arial, sans-serif'
-                    }}>
-                      {registrationResult.plate_number}
-                    </div>
-                  </div>
-
-                  {/* Clean Footer Strip */}
-                  <div style={{
-                    position: 'absolute',
-                    bottom: 0,
-                    width: '100%',
-                    height: '20px',
-                    backgroundColor: '#f3f4f6',
-                    borderTop: '1px solid #e5e7eb',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center'
-                  }}>
-                    <div style={{ color: '#4b5563', fontSize: '6pt', fontWeight: 'bold', letterSpacing: '1px' }}>
-                      REGION V • OFFICIAL GATE PASS STICKER
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>

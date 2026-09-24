@@ -163,6 +163,10 @@ class Vehicle(BaseEntity):
     brand: Optional[str] = None
     color: Optional[str] = None
     classification: Optional[str] = None
+    address: Optional[str] = None
+    email: Optional[str] = None
+    mobile: Optional[str] = None
+    vehicle_category: Optional[str] = None
     is_active: bool = True
     registration_type: RegistrationType = RegistrationType.PERMANENT
 
@@ -174,6 +178,23 @@ class VehicleCreate(BaseModel):
     brand: Optional[str] = None
     color: Optional[str] = None
     classification: Optional[str] = None
+    address: Optional[str] = None
+    email: Optional[str] = None
+    mobile: Optional[str] = None
+    vehicle_category: Optional[str] = None
+
+class VehicleUpdate(BaseModel):
+    plate_number: Optional[str] = None
+    vehicle_type: Optional[VehicleType] = None
+    owner_name: Optional[str] = None
+    department: Optional[str] = None
+    brand: Optional[str] = None
+    color: Optional[str] = None
+    classification: Optional[str] = None
+    address: Optional[str] = None
+    email: Optional[str] = None
+    mobile: Optional[str] = None
+    vehicle_category: Optional[str] = None
 class VisitorRegistration(BaseEntity):
     """Visitor vehicle registration"""
     plate_number: str
@@ -193,7 +214,7 @@ class VisitorRegistrationCreate(BaseModel):
     driver_license: Dict  # Will be converted to DriverLicense
     purpose_of_visit: str
     department_visiting: Optional[str] = None
-    visit_duration: VisitDuration
+    visit_duration: VisitDuration = VisitDuration.ONE_DAY
     license_photo_base64: Optional[str] = None
 
 class EntryExitLog(BaseEntity):
@@ -363,7 +384,7 @@ class DateTimeService:
             VisitDuration.EIGHT_HOURS: timedelta(hours=8),
             VisitDuration.ONE_DAY: timedelta(days=1)
         }
-        return now + duration_map.get(duration, timedelta(hours=8))
+        return now + duration_map.get(duration, timedelta(hours=24))
 
 class FileService:
     """Service for file operations"""
@@ -395,10 +416,8 @@ class BarcodeService:
     
     @staticmethod
     async def generate_barcode_data(registration: VisitorRegistration) -> str:
-        """Generate barcode data for visitor registration as sequential six-digit serial number starting at 000001"""
-        count = await db.visitor_registrations.count_documents({})
-        serial_number = str(count + 1).zfill(6)
-        return serial_number
+        """Generate barcode data for visitor registration using the vehicle plate number"""
+        return registration.plate_number.strip().upper()
 
 # Repository Classes (Data Access Layer)
 class BaseRepository(ABC):
@@ -475,6 +494,10 @@ class VehicleRepository(BaseRepository):
                 "brand": da_str.get("vehicle", {}).get("brand"),
                 "color": da_str.get("vehicle", {}).get("color"),
                 "classification": da_str.get("employment", {}).get("status"),
+                "address": owner_info.get("address"),
+                "email": owner_info.get("email"),
+                "mobile": owner_info.get("mobile"),
+                "vehicle_category": da_str.get("vehicle_category") or da_str.get("vehicle", {}).get("category") or "Car",
                 "is_active": True,
                 "registration_type": RegistrationType.PERMANENT.value
             }
@@ -511,6 +534,10 @@ class VehicleRepository(BaseRepository):
                 "brand": da_str.get("vehicle", {}).get("brand"),
                 "color": da_str.get("vehicle", {}).get("color"),
                 "classification": da_str.get("employment", {}).get("status"),
+                "address": owner_info.get("address"),
+                "email": owner_info.get("email"),
+                "mobile": owner_info.get("mobile"),
+                "vehicle_category": da_str.get("vehicle_category") or da_str.get("vehicle", {}).get("category") or "Car",
                 "is_active": True,
                 "registration_type": RegistrationType.PERMANENT.value
             })
@@ -545,20 +572,58 @@ class VisitorRegistrationRepository(BaseRepository):
         return convert_objectid_to_str(doc)
     
     async def find_by_plate_number(self, plate_number: str) -> Optional[dict]:
-        doc = await self.collection.find_one({
-            "plate_number": plate_number, 
-            "is_active": True,
-            "expires_at": {"$gt": datetime.now(timezone.utc)}
-        })
+        import re
+        clean_plate = plate_number.strip()
+        regex = re.compile(f"^{re.escape(clean_plate)}$", re.IGNORECASE)
+        
+        # Look for active visitor registration matching plate number
+        doc = await self.collection.find_one({"plate_number": regex, "is_active": True})
+        if not doc:
+            doc = await self.collection.find_one({"plate_number": clean_plate.upper(), "is_active": True})
+        if not doc:
+            return None
+
+        now = DateTimeService.now_pht()
+        expires_at = doc.get("expires_at")
+
+        if isinstance(expires_at, str):
+            try:
+                expires_at = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                expires_at = DateTimeService.ensure_timezone_aware(expires_at)
+            except Exception:
+                expires_at = None
+
+        if isinstance(expires_at, datetime):
+            expires_at = DateTimeService.ensure_timezone_aware(expires_at)
+
+        # If pass is_active is True but expires_at was in the past or missing, auto-extend for 24 hours
+        if not expires_at or expires_at <= now:
+            new_expiry = now + timedelta(hours=24)
+            await self.collection.update_one(
+                {"_id": doc["_id"]},
+                {"$set": {"expires_at": new_expiry, "is_active": True}}
+            )
+            doc["expires_at"] = new_expiry
+
         return convert_objectid_to_str(doc)
     
     async def find_all_active(self) -> List[dict]:
-        cursor = self.collection.find({
-            "is_active": True,
-            "expires_at": {"$gt": DateTimeService.now_pht()}
-        })
+        now = DateTimeService.now_pht()
+        cursor = self.collection.find({"is_active": True})
         docs = await cursor.to_list(1000)
-        return [convert_objectid_to_str(doc) for doc in docs]
+        active_docs = []
+        for doc in docs:
+            exp = doc.get("expires_at")
+            if isinstance(exp, str):
+                try:
+                    exp = DateTimeService.ensure_timezone_aware(datetime.fromisoformat(exp.replace("Z", "+00:00")))
+                except Exception:
+                    exp = None
+            if isinstance(exp, datetime):
+                exp = DateTimeService.ensure_timezone_aware(exp)
+            if exp and exp > now:
+                active_docs.append(convert_objectid_to_str(doc))
+        return active_docs
         
     async def find_all_recent(self, limit: int = 100) -> List[dict]:
         cursor = self.collection.find({}).sort("created_at", -1).limit(limit)
@@ -1234,6 +1299,68 @@ async def get_vehicle_by_plate(plate_number: str, current_user: dict = Depends(g
         raise HTTPException(status_code=404, detail="Vehicle not found")
     return vehicle
 
+@api_router.put("/vehicles/{identifier}")
+async def update_vehicle_details(identifier: str, update_data: VehicleUpdate, current_user: dict = Depends(get_current_user)):
+    data = {k: v for k, v in update_data.dict().items() if v is not None}
+    if not data:
+        return {"success": True, "message": "No fields to update"}
+        
+    # Check vehicles collection first
+    query = {"$or": [{"id": identifier}, {"plate_number": identifier}]}
+    if ObjectId.is_valid(identifier):
+        query["$or"].append({"_id": ObjectId(identifier)})
+        
+    v_doc = await db.vehicles.find_one(query)
+    if v_doc:
+        update_dict = {}
+        for k, v in data.items():
+            if k == "vehicle_type" and hasattr(v, "value"):
+                update_dict[k] = v.value
+            else:
+                update_dict[k] = v
+        await db.vehicles.update_one({"_id": v_doc["_id"]}, {"$set": update_dict})
+        return {"success": True, "message": "Vehicle updated successfully"}
+
+    # Check da-registrations collection
+    da_query = {"$or": [{"vehicle.plate_number": identifier}]}
+    if ObjectId.is_valid(identifier):
+        da_query["$or"].append({"_id": ObjectId(identifier)})
+
+    da_doc = await db["da-registrations"].find_one(da_query)
+    if da_doc:
+        da_update = {}
+        if "owner_name" in data:
+            parts = data["owner_name"].strip().split(" ", 1)
+            da_update["owner.first_name"] = parts[0]
+            da_update["owner.family_name"] = parts[1] if len(parts) > 1 else ""
+        if "address" in data:
+            da_update["owner.address"] = data["address"]
+        if "email" in data:
+            da_update["owner.email"] = data["email"]
+        if "mobile" in data:
+            da_update["owner.mobile"] = data["mobile"]
+        if "classification" in data:
+            da_update["employment.status"] = data["classification"]
+        if "department" in data:
+            da_update["employment.classification"] = data["department"]
+        if "vehicle_category" in data:
+            da_update["vehicle_category"] = data["vehicle_category"]
+            da_update["vehicle.category"] = data["vehicle_category"]
+        if "vehicle_type" in data:
+            v_val = data["vehicle_type"].value if hasattr(data["vehicle_type"], "value") else data["vehicle_type"]
+            da_update["vehicle_type"] = v_val
+            da_update["vehicle.type"] = v_val
+        if "brand" in data:
+            da_update["vehicle.brand"] = data["brand"]
+        if "color" in data:
+            da_update["vehicle.color"] = data["color"]
+
+        if da_update:
+            await db["da-registrations"].update_one({"_id": da_doc["_id"]}, {"$set": da_update})
+            return {"success": True, "message": "Vehicle updated successfully"}
+
+    raise HTTPException(status_code=404, detail="Vehicle record not found")
+
 # Visitor registration routes
 @api_router.post("/visitor-registration", response_model=VisitorRegistration)
 async def register_visitor(registration_data: VisitorRegistrationCreate, current_user: dict = Depends(get_current_user)):
@@ -1499,10 +1626,35 @@ async def update_document(
     # Remove _id from update data if present
     update_data = {k: v for k, v in document_data.items() if k != '_id'}
     
-    # Auto-sync barcode_data for visitors if plate_number is updated
-    if collection_name == 'visitor_registrations' and 'plate_number' in update_data:
-        update_data['plate_number'] = update_data['plate_number'].upper()
-        update_data['barcode_data'] = update_data['plate_number']
+    # Auto-sync barcode_data for visitors if plate_number is updated, and handle 24h expiration
+    if collection_name == 'visitor_registrations':
+        if 'plate_number' in update_data:
+            update_data['plate_number'] = update_data['plate_number'].upper()
+            update_data['barcode_data'] = update_data['plate_number']
+        
+        now = DateTimeService.now_pht()
+        if update_data.get('is_active') is True:
+            exp = update_data.get('expires_at')
+            exp_dt = None
+            if isinstance(exp, str):
+                try:
+                    exp_dt = DateTimeService.ensure_timezone_aware(datetime.fromisoformat(exp.replace("Z", "+00:00")))
+                except Exception:
+                    pass
+            elif isinstance(exp, datetime):
+                exp_dt = DateTimeService.ensure_timezone_aware(exp)
+            
+            if not exp_dt or exp_dt <= now:
+                update_data['expires_at'] = now + timedelta(hours=24)
+            else:
+                update_data['expires_at'] = exp_dt
+        elif 'expires_at' in update_data and isinstance(update_data['expires_at'], str):
+            try:
+                update_data['expires_at'] = DateTimeService.ensure_timezone_aware(
+                    datetime.fromisoformat(update_data['expires_at'].replace("Z", "+00:00"))
+                )
+            except Exception:
+                pass
         
     # Update document
     result = await collection.update_one(
